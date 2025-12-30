@@ -1,3 +1,4 @@
+# TODO.md
 # 1. Add "condition" to samplesheet (ie. Control | Treatment}
 # 2. Add group-specific handling for:
     - Normalization

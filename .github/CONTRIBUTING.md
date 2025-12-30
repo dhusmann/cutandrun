@@ -9,20 +9,15 @@ Please use the pre-filled template to save time.
 However, don't be put off by this template - other more general issues and suggestions are welcome!
 Contributions to the code are even more welcome ;)
 
-:::info
-If you need help using or modifying nf-core/cutandrun then the best place to ask is on the nf-core Slack [#cutandrun](https://nfcore.slack.com/channels/cutandrun) channel ([join our Slack here](https://nf-co.re/join/slack)).
-:::
-
 ## Contribution workflow
 
 If you'd like to write some code for nf-core/cutandrun, the standard workflow is as follows:
 
-1. Check that there isn't already an issue about your idea in the [nf-core/cutandrun issues](https://github.com/nf-core/cutandrun/issues) to avoid duplicating work. If there isn't one already, please create one so that others know you're working on this
-2. [Fork](https://help.github.com/en/github/getting-started-with-github/fork-a-repo) the [nf-core/cutandrun repository](https://github.com/nf-core/cutandrun) to your GitHub account
-3. Make the necessary changes / additions within your forked repository following [Pipeline conventions](#pipeline-contribution-conventions)
-4. Use `nf-core schema build` and add any new parameters to the pipeline JSON schema (requires [nf-core tools](https://github.com/nf-core/tools) >= 1.10).
-5. Submit a Pull Request against the `dev` branch and wait for the code to be reviewed and merged
-
+1. [Fork](https://help.github.com/en/github/getting-started-with-github/fork-a-repo) the [nf-core/cutandrun repository](https://github.com/nf-core/cutandrun) to your GitHub account **Note: We've already done this; see our fork here
+2. Make the necessary changes / additions within your forked repository following [Pipeline conventions](#pipeline-contribution-conventions)
+3. Use `nf-core schema build` and add any new parameters to the pipeline JSON schema (requires [nf-core tools](https://github.com/nf-core/tools) >= 1.10).
+4. Create a pull request against the `adding_new_peak_callers` branch and wait for the code to be reviewed and merged
+   
 If you're not used to this workflow with git, you can start with some [docs from GitHub](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests) or even their [excellent `git` resources](https://try.github.io/).
 
 ## Tests
@@ -59,7 +54,7 @@ These tests are run both with the latest available version of `Nextflow` and als
 
 ## Getting help
 
-For further information/help, please consult the [nf-core/cutandrun documentation](https://nf-co.re/cutandrun/usage) and don't hesitate to get in touch on the nf-core Slack [#cutandrun](https://nfcore.slack.com/channels/cutandrun) channel ([join our Slack here](https://nf-co.re/join/slack)).
+For further information/help, please consult the [nf-core/cutandrun documentation](https://nf-co.re/cutandrun/usage).
 
 ## Pipeline contribution conventions
 

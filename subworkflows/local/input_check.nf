@@ -22,23 +22,37 @@ workflow INPUT_CHECK {
 }
 
 // Function to get list of [ meta, [ fastq_1, fastq_2 ] ]
+def isRemotePath(String path) {
+    if (!path) {
+        return false
+    }
+    def lower = path.toLowerCase()
+    if (lower.startsWith('file://')) {
+        return false
+    }
+    return path ==~ /^[A-Za-z][A-Za-z0-9+.-]*:\\/\\/.+/
+}
+
 def get_samplesheet_paths(LinkedHashMap row) {
     def meta = [:]
     meta.id            = row.id
     meta.group         = row.group
+    meta.condition     = row.condition
     meta.replicate     = row.replicate.toInteger()
     meta.single_end    = row.single_end.toBoolean()
     meta.is_control    = row.is_control.toBoolean()
     meta.control_group = meta.is_control ? meta.group : row.control
+    meta.group_condition = "${meta.group}_${meta.condition}"
+    meta.sample_id = "${meta.group}_${meta.condition}_rep${meta.replicate}"
 
     def array = []
-    if (!file(row.fastq_1).exists()) {
+    if (!isRemotePath(row.fastq_1) && !file(row.fastq_1).exists()) {
         exit 1, "ERROR: Please check input samplesheet -> Read 1 FastQ file does not exist!\n${row.fastq_1}"
     }
     if (meta.single_end) {
         array = [ meta, [ file(row.fastq_1) ] ]
     } else {
-        if (!file(row.fastq_2).exists()) {
+        if (!isRemotePath(row.fastq_2) && !file(row.fastq_2).exists()) {
             exit 1, "ERROR: Please check input samplesheet -> Read 2 FastQ file does not exist!\n${row.fastq_2}"
         }
         array = [ meta, [ file(row.fastq_1), file(row.fastq_2) ] ]

@@ -21,11 +21,16 @@
      - 5.2. [Fingerprint](#Fingerprint)
      - 5.3. [Correlation](#Correlation)
 - 6. [Peak Calling](#PeakCalling)
-     - 6.1. [Bam to bedgraph](#Bamtobedgraph)
-     - 6.2. [Bed to bigwig](#Bedtobigwig)
-     - 6.3. [SEACR peak calling](#SEACRpeakcalling)
-     - 6.4. [MACS2 peak calling](#MACS2peakcalling)
-     - 6.5. [Consensus Peaks](#ConsensusPeaks)
+     - 6.1. [Normalisation factors](#NormalisationFactors)
+     - 6.2. [Pooled controls](#PooledControls)
+     - 6.3. [Bam to bedgraph](#Bamtobedgraph)
+     - 6.4. [Bed to bigwig](#Bedtobigwig)
+     - 6.5. [SEACR peak calling](#SEACRpeakcalling)
+     - 6.6. [MACS2 peak calling](#MACS2peakcalling)
+     - 6.7. [GoPeaks peak calling](#GoPeakspeakcalling)
+     - 6.8. [epic2 peak calling](#epic2peakcalling)
+     - 6.9. [SPAN/OmniPeaks peak calling](#SPANpeakcalling)
+     - 6.10. [Consensus Peaks](#ConsensusPeaks)
 - 7. [Peak-based QC](#Peak-basedQC)
      - 7.1. [Peak Counts](#PeakCounts)
      - 7.2. [Peak Reproducibility](#PeakReproducibility)
@@ -298,7 +303,32 @@ Computes the overall similarity between two or more samples based on read covera
 
 ## 6. <a name='PeakCalling'></a>Peak Calling
 
-### 6.1. <a name='Bamtobedgraph'></a>Bam to bedgraph
+### 6.1. <a name='NormalisationFactors'></a>Normalisation factors
+
+<details markdown="1">
+<summary>Output files</summary>
+
+- `03_peak_calling/00_normalisation_factors/`
+  - `*.tsv`: spike-in normalisation factors per scope (sample_id, group, condition, replicate, spikein_reads, scale_factor, scope_id).
+
+</details>
+
+These tables are generated when `--normalisation_mode Spikein` to record per-sample scale factors. When `--normalisation_scope` is `group` or `group_condition`, a separate TSV is written per scope.
+
+### 6.2. <a name='PooledControls'></a>Pooled controls
+
+<details markdown="1">
+<summary>Output files</summary>
+
+- `03_peak_calling/01_pooled_controls/`
+  - `<control_group>_<condition>.bam`: pooled control BAM per condition.
+  - `<control_group>_<condition>.bam.bai`: BAM index.
+
+</details>
+
+Controls are pooled per control group and condition for callers that require pooled controls (epic2/SPAN). If a matching condition is unavailable, the closest available control is used and recorded in `03_peak_calling/07_qc_tables/control_pooling_fallbacks.tsv`.
+
+### 6.3. <a name='Bamtobedgraph'></a>Bam to bedgraph
 
 <details markdown="1">
 <summary>Output files</summary>
@@ -310,7 +340,7 @@ Computes the overall similarity between two or more samples based on read covera
 
 Converts bam files to the bedgraph format.
 
-### 6.2. <a name='Bedtobigwig'></a>Bed to bigwig
+### 6.4. <a name='Bedtobigwig'></a>Bed to bigwig
 
 <details markdown="1">
 <summary>Output files</summary>
@@ -322,32 +352,91 @@ Converts bam files to the bedgraph format.
 
 The [bigWig](https://genome.ucsc.edu/goldenpath/help/bigWig.html) format is an indexed binary format useful for displaying dense, continuous data in Genome Browsers such as the [UCSC](https://genome.ucsc.edu/cgi-bin/hgTracks) and [IGV](http://software.broadinstitute.org/software/igv/). This mitigates the need to load the much larger BAM files for data visualisation purposes which will be slower and result in memory issues. The bigWig format is also supported by various bioinformatics software for downstream processing such as meta-profile plotting.
 
-### 6.3. <a name='SEACRpeakcalling'></a>SEACR peak calling
+### 6.5. <a name='SEACRpeakcalling'></a>SEACR peak calling
 
 <details markdown="1">
 <summary>Output files</summary>
 
-- `03_peak_calling/04_called_peaks/`
+- `03_peak_calling/04_called_peaks/seacr/`
   - BED file containing peak coordinates and peak signal.
 
 </details>
 
 [SEACR](https://github.com/FredHutch/SEACR) is a peak caller for data with low background-noise, so is well suited to CUT&Run/CUT&Tag data. SEACR can take in IgG control bedGraph files in order to avoid calling peaks in regions of the experimental data for which the IgG control is enriched. If `--use_control false` is specified, SEACR calls enriched regions in target data by selecting the top 5% of regions by AUC by default. This threshold can be overwritten using `--seacr_peak_threshold`.
 
-### 6.4. <a name='MACS2peakcalling'></a>MACS2 peak calling
+### 6.6. <a name='MACS2peakcalling'></a>MACS2 peak calling
 
-- `03_peak_calling/04_called_peaks/`
-  - BED file containing peak coordinates and peak signal.
+<details markdown="1">
+<summary>Output files</summary>
 
-MACS2 is a peak caller used in many other experiments such as ATAC-seq and ChIP-seq. It can deal with high levels of background noise but is generally less sensitive than SEACR. If you are having trouble calling peaks in SEACR, we recommend switching to this peak caller, especially if your QC is saying that you have a high level of background noise.
-
-MACS2 has its main parameters exposed through the pipeline configuration. The default p-values and genome size can be changed using the `--macs2_pvalue` and `--macs2_gsize` parameters. MACS2 has two calling modes: narrow and broad peak. We recommend using broad peak for epitopes with a wide peak range such as histone marks, and narrow peak for small binding proteins such as transcription factors. This mode can be changed using `--macs2_narrow_peak`.
-
-### 6.5. <a name='ConsensusPeaks'></a>Consensus Peaks
+- `03_peak_calling/04_called_peaks/macs2/`
+  - Legacy MACS2 peak files (narrow/broad depending on `--macs2_narrow_peak`).
+- `03_peak_calling/04_called_peaks/macs2_narrow/`
+  - NarrowPeak outputs (CUT&RUN-optimised, no control).
+- `03_peak_calling/04_called_peaks/macs2_broad/`
+  - BroadPeak outputs (CUT&RUN-optimised, no control).
 
 </details>
 
-The merge function from [BEDtools](https://github.com/arq5x/bedtools2) is used to merge replicate peaks of the same experimental group to create a consensus peak set. This can then optionally be filtered for consensus peaks contributed to be a threshold number of replicates using `--replicate_threshold`.
+MACS2 is a peak caller used in many other experiments such as ATAC-seq and ChIP-seq. It can deal with high levels of background noise but is generally less sensitive than SEACR. If you are having trouble calling peaks in SEACR, we recommend switching to this peak caller, especially if your QC is saying that you have a high level of background noise.
+
+MACS2 has its main parameters exposed through the pipeline configuration. The default p-values and genome size can be changed using the `--macs2_pvalue` and `--macs2_gsize` parameters. The legacy `macs2` caller toggles narrow/broad mode with `--macs2_narrow_peak`; the `macs2_narrow` and `macs2_broad` variants always run without controls using CUT&RUN-optimised defaults.
+
+### 6.7. <a name='GoPeakspeakcalling'></a>GoPeaks peak calling
+
+<details markdown="1">
+<summary>Output files</summary>
+
+- `03_peak_calling/04_called_peaks/gopeaks_narrow/`
+  - `*.bed`: narrow peaks.
+  - `*_gopeaks.json`: JSON summary for MultiQC.
+- `03_peak_calling/04_called_peaks/gopeaks_broad/`
+  - `*.bed`: broad peaks.
+  - `*_gopeaks.json`: JSON summary for MultiQC.
+
+</details>
+
+GoPeaks supports narrow (default) and broad calling; broad mode is enabled via `--broad`.
+
+### 6.8. <a name='epic2peakcalling'></a>epic2 peak calling
+
+<details markdown="1">
+<summary>Output files</summary>
+
+- `03_peak_calling/04_called_peaks/epic2_200bp/`
+- `03_peak_calling/04_called_peaks/epic2_150bp/`
+- `03_peak_calling/04_called_peaks/epic2_25bp/`
+  - `*.peaks`: epic2 peak outputs.
+
+</details>
+
+epic2 callers require pooled controls; see the pooled controls section above.
+
+### 6.9. <a name='SPANpeakcalling'></a>SPAN/OmniPeaks peak calling
+
+<details markdown="1">
+<summary>Output files</summary>
+
+- `03_peak_calling/04_called_peaks/span_default/`
+- `03_peak_calling/04_called_peaks/span_stringent/`
+  - `*.peak`: SPAN/OmniPeaks peak outputs.
+
+</details>
+
+SPAN/OmniPeaks callers require pooled controls and the `--omnipeaks_jar` parameter.
+
+### 6.10. <a name='ConsensusPeaks'></a>Consensus Peaks
+
+<details markdown="1">
+<summary>Output files</summary>
+
+- `03_peak_calling/05_consensus_peaks/<group>/<condition>/`
+  - `<group>_<condition>_<caller>.consensus.peak_counts.bed`: merged consensus peaks with replicate counts.
+  - `<group>_<condition>_<caller>_consensus.awk.bed`: filtered consensus peaks after applying `--replicate_threshold`.
+
+</details>
+
+The merge function from [BEDtools](https://github.com/arq5x/bedtools2) is used to merge replicate peaks of the same experimental group (by `group` or `group_condition`) to create a consensus peak set. This can then optionally be filtered for consensus peaks contributed to be a threshold number of replicates using `--replicate_threshold`.
 
 ## 7. <a name='Peak-basedQC'></a>Peak-based QC
 

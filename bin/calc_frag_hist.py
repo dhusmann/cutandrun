@@ -73,14 +73,19 @@ for i in list(range(len(dt_frag_list))):
     separator = ""
     sample_id = separator.join(sample_id_list[0:-2])
 
-    # Split sample id on underscores
-    sample_id_split_list = sample_id.split("_")
-
-    # Take first element of this list for group id
-    group_i = separator.join(sample_id_split_list[0:-1])
-
-    # Take last element of this list for replicate number
-    rep_i = sample_id_split_list[-1]
+    # Parse sample id into group/condition and replicate
+    group_i = sample_id
+    rep_i = ""
+    if "_rep" in sample_id and "_T" in sample_id:
+        try:
+            group_i, rep_i, _ = sample_id.rsplit("_", 2)
+        except ValueError:
+            group_i = sample_id
+            rep_i = ""
+    else:
+        sample_id_split_list = sample_id.split("_")
+        group_i = separator.join(sample_id_split_list[0:-1])
+        rep_i = sample_id_split_list[-1]
 
     # Round column and convert occurrences to int
     dt_frag_i = dt_frag_i.round(1)

@@ -3,8 +3,8 @@
   tags:
     - verify_output_align_intermed
   files:
-    - path: results/02_alignment/bowtie2/target/h3k27me3_R1.bam
-    - path: results/02_alignment/bowtie2/target/h3k27me3_R1.target.filtered.bam
-    - path: results/02_alignment/bowtie2/target/h3k27me3_R1.target.sorted.bam
-    - path: results/02_alignment/bowtie2/target/dedup/igg_ctrl_R1.target.dedup.sorted.bam
-    - path: results/02_alignment/bowtie2/target/dedup/igg_ctrl_R1.target.dedup.sorted.bam.bai
+    - path: results/02_alignment/bowtie2/target/h3k27me3_NA_rep1_T1.bam
+    - path: results/02_alignment/bowtie2/target/h3k27me3_NA_rep1_T1.target.filtered.bam
+    - path: results/02_alignment/bowtie2/target/h3k27me3_NA_rep1_T1.target.sorted.bam
+    - path: results/02_alignment/bowtie2/target/dedup/igg_ctrl_NA_rep1_T1.target.dedup.sorted.bam
+    - path: results/02_alignment/bowtie2/target/dedup/igg_ctrl_NA_rep1_T1.target.dedup.sorted.bam.bai

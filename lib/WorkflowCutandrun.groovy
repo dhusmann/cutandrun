@@ -4,6 +4,7 @@
 
 import nextflow.Nextflow
 import groovy.text.SimpleTemplateEngine
+import java.net.URL
 
 class WorkflowCutandrun {
 
@@ -12,7 +13,13 @@ class WorkflowCutandrun {
     //
     public static void initialise(params, log) {
 
+        if (!params.consensus_grouping) {
+            def has_condition = samplesheetHasCondition(params.input, log)
+            params.consensus_grouping = has_condition == false ? 'group' : 'group_condition'
+        }
+
         genomeExistsError(params, log)
+        validatePeakCallerParams(params, log)
 
         if (!params.fasta) {
             Nextflow.error "Genome fasta file not specified with e.g. '--fasta genome.fa' or via a detectable config file."
@@ -48,6 +55,99 @@ class WorkflowCutandrun {
         if (!params.fasta && !params.mito_name && params.remove_mitochondrial_reads) {
             rmMitoWarn(log)
         }
+    }
+
+    //
+    // Validate extended peak caller parameters
+    //
+    private static void validatePeakCallerParams(params, log) {
+        def callers = params.callers ?: []
+
+        if (callers.any { it.startsWith('epic2_') }) {
+            if (!params.epic2_genome) {
+                params.epic2_genome = inferEpic2Genome(params)
+            }
+            if (!params.epic2_genome) {
+                Nextflow.error "epic2 callers requested but epic2 genome name is not set. Please provide --epic2_genome."
+            }
+        }
+
+        if (callers.any { it.startsWith('span_') }) {
+            if (!params.omnipeaks_jar) {
+                Nextflow.error "SPAN/OMNIPEAKS callers requested but --omnipeaks_jar was not provided."
+            }
+        }
+
+        if (params.normalisation_scope && !['all','group','group_condition'].contains(params.normalisation_scope)) {
+            Nextflow.error "Invalid --normalisation_scope value '${params.normalisation_scope}'. Valid options: all, group, group_condition."
+        }
+
+        if (params.igg_scale_scope && !['legacy','group_condition','sample'].contains(params.igg_scale_scope)) {
+            Nextflow.error "Invalid --igg_scale_scope value '${params.igg_scale_scope}'. Valid options: legacy, group_condition, sample."
+        }
+
+        if (params.consensus_grouping && !['group','group_condition'].contains(params.consensus_grouping)) {
+            Nextflow.error "Invalid --consensus_grouping value '${params.consensus_grouping}'. Valid options: group, group_condition."
+        }
+
+        if (params.peakcaller_preset && !['standard','extended'].contains(params.peakcaller_preset.toLowerCase())) {
+            Nextflow.error "Invalid --peakcaller_preset value '${params.peakcaller_preset}'. Valid options: standard, extended."
+        }
+    }
+
+    //
+    // Detect whether the input samplesheet includes a condition column
+    //
+    private static Boolean samplesheetHasCondition(def input, log) {
+        if (!input) {
+            return null
+        }
+        try {
+            def input_str = input.toString()
+            String header = null
+            if (input_str.startsWith('http://') || input_str.startsWith('https://')) {
+                header = new URL(input_str).withReader { it.readLine() }
+            } else {
+                def f = new File(input_str)
+                if (!f.exists()) {
+                    return null
+                }
+                f.withReader { header = it.readLine() }
+            }
+            if (!header) {
+                return null
+            }
+            def cols = header.replaceAll('"', '').split(',').collect { it.trim() }
+            return cols.size() > 1 && cols[0] == 'group' && cols[1] == 'condition'
+        } catch (Exception e) {
+            if (log) {
+                log.warn "Unable to detect 'condition' column in samplesheet; defaulting consensus grouping to group_condition."
+            }
+            return null
+        }
+    }
+
+    //
+    // Infer epic2 genome name from pipeline genome key if possible
+    //
+    private static String inferEpic2Genome(params) {
+        if (!params.genome) {
+            return null
+        }
+        def genome_key = params.genome.toString().toLowerCase()
+        if (['grch38','hg38'].contains(genome_key)) {
+            return 'hg38'
+        }
+        if (['grch37','hg19'].contains(genome_key)) {
+            return 'hg19'
+        }
+        if (['grcm39','mm39'].contains(genome_key)) {
+            return 'mm10'
+        }
+        if (['grcm38','mm10'].contains(genome_key)) {
+            return 'mm10'
+        }
+        return null
     }
 
     //

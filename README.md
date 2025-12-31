@@ -69,11 +69,11 @@ First, prepare a samplesheet with your input data that looks as follows:
 `samplesheet.csv`:
 
 ```csv
-group,replicate,fastq_1,fastq_2,control
-h3k27me3,1,h3k27me3_rep1_r1.fastq.gz,h3k27me3_rep1_r2.fastq.gz,igg_ctrl
-h3k27me3,2,h3k27me3_rep2_r1.fastq.gz,h3k27me3_rep2_r2.fastq.gz,igg_ctrl
-igg_ctrl,1,igg_rep1_r1.fastq.gz,igg_rep1_r2.fastq.gz,
-igg_ctrl,2,igg_rep2_r1.fastq.gz,igg_rep2_r2.fastq.gz,
+group,condition,replicate,fastq_1,fastq_2,control
+h3k27me3,Control,1,h3k27me3_rep1_r1.fastq.gz,h3k27me3_rep1_r2.fastq.gz,igg_ctrl
+h3k27me3,Control,2,h3k27me3_rep2_r1.fastq.gz,h3k27me3_rep2_r2.fastq.gz,igg_ctrl
+igg_ctrl,Control,1,igg_rep1_r1.fastq.gz,igg_rep1_r2.fastq.gz,
+igg_ctrl,Control,2,igg_rep2_r1.fastq.gz,igg_rep2_r2.fastq.gz,
 ```
 
 Each row represents a pair of fastq files (paired end).

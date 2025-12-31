@@ -19,6 +19,7 @@ workflow PEAK_QC {
     fragments_bed                       // channel: [ val(meta), [ bed ] ]
     flagstat                            // channel: [ val(meta), [ flagstat ] ]
     min_frip_overlap                    // val
+    consensus_grouping                  // val: group or group_condition
     frip_score_header_multiqc           // file
     peak_count_header_multiqc           // file
     peak_count_consensus_header_multiqc // file
@@ -80,9 +81,19 @@ workflow PEAK_QC {
     * CHANNEL: Group samples based on group and filter for groups that have more than one file
     */
     CUT_CALC_REPROD.out.file
-    .map { row -> [ row[0].group, row[1] ] }
+    .map { row ->
+        def group_key = consensus_grouping == 'group_condition' ? row[0].group_condition : row[0].group
+        [ "${group_key}__${row[0].caller}", row[1], row[0] ]
+    }
     .groupTuple(by: [0])
-    .map { row -> [ [id: row[0]], row[1].flatten() ] }
+    .map { row ->
+        def meta0 = row[2][0]
+        def conditions = row[2].collect { it.condition }.unique()
+        def condition_label = consensus_grouping == 'group_condition' ? meta0.condition : (conditions.size() == 1 ? conditions[0] : 'all')
+        def group_key = consensus_grouping == 'group_condition' ? meta0.group_condition : meta0.group
+        def meta = [id: "${group_key}_${meta0.caller}", group: meta0.group, condition: condition_label, caller: meta0.caller]
+        [ meta, row[1].flatten() ]
+    }
     .map { row -> [ row[0], row[1], row[1].size() ] }
     .filter { row -> row[2] > 1 }
     .map { row -> [ row[0], row[1] ] }
@@ -132,10 +143,11 @@ workflow PEAK_QC {
     * CHANNEL: Prep for upset input
     */
     consensus_peaks_unfiltered
-    .toSortedList { row -> row[0].id }
-    .map { list ->
+    .map { row -> [ row[0].caller, row[1] ] }
+    .groupTuple(by: [0])
+    .map { row ->
         def output = []
-        list.each{ v -> output.add(v[1]) }
+        row[1].each{ v -> output.add(v) }
         output
     }
     .set { ch_merged_bed_sorted }

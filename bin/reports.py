@@ -79,7 +79,13 @@ def merge_samples(args):
     for idx, file in enumerate(file_list):
         # Strip sample id and group name
         sample_id = os.path.basename(file).replace(args.id_parse_string, "")
-        group_name = "_".join(sample_id.split("_")[:-1])
+        if "_rep" in sample_id and "_T" in sample_id:
+            try:
+                group_name = sample_id.rsplit("_", 2)[0]
+            except ValueError:
+                group_name = "_".join(sample_id.split("_")[:-1])
+        else:
+            group_name = "_".join(sample_id.split("_")[:-1])
 
         # Load table
         df_newdata = pd.read_csv(file, sep=",")

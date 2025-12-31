@@ -89,10 +89,22 @@ ch_linear_duplication_header_multiqc    = file("$projectDir/assets/multiqc/linea
 def prepare_tool_indices = ["bowtie2"]
 
 // Check peak caller params
-def caller_list = ['seacr', 'macs2']
-callers = params.peakcaller ? params.peakcaller.split(',').collect{ it.trim().toLowerCase() } : ['seacr']
+def caller_list = [
+    'seacr',
+    'macs2',
+    'macs2_narrow',
+    'macs2_broad',
+    'gopeaks_narrow',
+    'gopeaks_broad',
+    'epic2_200bp',
+    'epic2_150bp',
+    'epic2_25bp',
+    'span_default',
+    'span_stringent'
+]
+callers = params.callers ?: ['seacr']
 if ((caller_list + callers).unique().size() != caller_list.size()) {
-    exit 1, "Invalid variant calller option: ${params.peakcaller}. Valid options: ${caller_list.join(', ')}"
+    exit 1, "Invalid variant calller option: ${params.peakcaller ?: params.peakcaller_preset}. Valid options: ${caller_list.join(', ')}"
 }
 
 /*
@@ -112,6 +124,7 @@ include { AWK as AWK_EXTRACT_SUMMITS } from "../modules/local/linux/awk"
 include { SAMTOOLS_CUSTOMVIEW        } from "../modules/local/samtools_custom_view"
 include { FRAG_LEN_HIST              } from "../modules/local/python/frag_len_hist"
 include { MULTIQC                    } from "../modules/local/multiqc"
+include { CONTROL_POOLING_FALLBACKS_REPORT } from "../modules/local/control_pooling_fallbacks_report"
 
 /*
  * SUBWORKFLOWS
@@ -128,6 +141,7 @@ include { CONSENSUS_PEAKS                                  } from "../subworkflo
 include { CONSENSUS_PEAKS as CONSENSUS_PEAKS_ALL           } from "../subworkflows/local/consensus_peaks"
 include { EXTRACT_FRAGMENTS                                } from "../subworkflows/local/extract_fragments"
 include { PREPARE_PEAKCALLING                              } from "../subworkflows/local/prepare_peakcalling"
+include { PEAK_CALLING_EXTENDED                            } from "../subworkflows/local/peak_calling_extended"
 include { DEEPTOOLS_QC                                     } from "../subworkflows/local/deeptools_qc"
 include { PEAK_QC                                          } from "../subworkflows/local/peak_qc"
 include { SAMTOOLS_VIEW_SORT_STATS as FILTER_READS         } from "../subworkflows/local/samtools_view_sort_stats"
@@ -194,11 +208,12 @@ workflow CUTANDRUN {
         )
 
         INPUT_CHECK.out.reads
-        .map {
-            meta, fastq ->
-                meta.id = meta.id.split("_")[0..-2].join("_")
-                [ meta, fastq ] }
+        .map { meta, fastq -> [ meta.sample_id, meta, fastq ] }
         .groupTuple(by: [0])
+        .map { sample_id, metas, fastqs ->
+            def meta_out = metas.sort { it.id }[0]
+            [ meta_out, fastqs.flatten() ]
+        }
         .branch {
             meta, fastq ->
                 single  : fastq.size() == 1
@@ -435,13 +450,17 @@ workflow CUTANDRUN {
 
     ch_bedgraph               = Channel.empty()
     ch_bigwig                 = Channel.empty()
-    ch_seacr_peaks            = Channel.empty()
-    ch_macs2_peaks            = Channel.empty()
+    ch_peaks_all              = Channel.empty()
     ch_peaks_primary          = Channel.empty()
     ch_peaks_secondary        = Channel.empty()
     ch_peaks_summits          = Channel.empty()
+    ch_macs2_summits          = Channel.empty()
     ch_consensus_peaks        = Channel.empty()
     ch_consensus_peaks_unfilt = Channel.empty()
+    ch_control_fallbacks      = Channel.empty()
+    ch_pooled_controls_bam    = Channel.empty()
+    ch_pooled_controls_bai    = Channel.empty()
+    ch_gopeaks_json           = Channel.empty()
     if(params.run_peak_calling) {
         /*
         * SUBWORKFLOW: Convert BAM files to bedgraph/bigwig and apply configured normalisation strategy
@@ -452,7 +471,10 @@ workflow CUTANDRUN {
             PREPARE_GENOME.out.chrom_sizes.collect(),
             ch_dummy_file,
             params.normalisation_mode,
-            ch_metadata_bt2_spikein
+            ch_metadata_bt2_spikein,
+            params.normalisation_scope,
+            params.igg_scale_scope,
+            ch_samtools_flagstat
         )
         ch_bedgraph          = PREPARE_PEAKCALLING.out.bedgraph
         ch_bigwig            = PREPARE_PEAKCALLING.out.bigwig
@@ -478,122 +500,44 @@ workflow CUTANDRUN {
         //ch_bam_target | view
         //ch_bam_control | view
 
-        if(params.use_control) {
+        /*
+        * SUBWORKFLOW: Call peaks using extended callers
+        */
+        PEAK_CALLING_EXTENDED (
+            ch_bedgraph_target,
+            ch_bedgraph_control,
+            ch_bam_target,
+            ch_bam_control,
+            PREPARE_GENOME.out.chrom_sizes,
+            callers
+        )
+        ch_peaks_all           = PEAK_CALLING_EXTENDED.out.peaks
+        ch_macs2_summits       = PEAK_CALLING_EXTENDED.out.macs2_summits
+        ch_pooled_controls_bam = PEAK_CALLING_EXTENDED.out.pooled_controls_bam
+        ch_pooled_controls_bai = PEAK_CALLING_EXTENDED.out.pooled_controls_bai
+        ch_control_fallbacks   = PEAK_CALLING_EXTENDED.out.control_fallbacks
+        ch_gopeaks_json        = PEAK_CALLING_EXTENDED.out.gopeaks_json
+        ch_software_versions   = ch_software_versions.mix(PEAK_CALLING_EXTENDED.out.versions)
+
+        if (callers.find { it.startsWith('macs2') }) {
             /*
-            * MODULE: Call peaks using SEACR with IgG control
+            * MODULE: Convert MACS2 outputs to BED
             */
-            if('seacr' in callers) {
-                /*
-                * CHANNEL: Create target/control pairings
-                */
-                ch_bedgraph_control.map{ row -> [row[0].control_group + "_" + row[0].replicate, row] }
-                .cross( ch_bedgraph_target.map{ row -> [row[0].control_group, row] } )
-                .map {
-                    row ->
-                    [ row[1][1][0], row[1][1][1], row[0][1][1] ]
+            ch_peaks_all
+                .branch {
+                    macs2: it[0].caller.startsWith('macs2')
+                    other: !it[0].caller.startsWith('macs2')
                 }
-                .set { ch_bedgraph_paired }
-                // EXAMPLE CHANNEL STRUCT: [[META], TARGET_BEDGRAPH, CONTROL_BEDGRAPH]
+                .set { ch_peaks_split }
 
-                SEACR_CALLPEAK_IGG (
-                    ch_bedgraph_paired,
-                    params.seacr_peak_threshold
-                )
-                ch_seacr_peaks       = SEACR_CALLPEAK_IGG.out.bed
-                ch_software_versions = ch_software_versions.mix(SEACR_CALLPEAK_IGG.out.versions)
-                // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                //SEACR_CALLPEAK_IGG.out.bed | view
-            }
-
-            if('macs2' in callers) {
-                /*
-                * CHANNEL: Create target/control pairings
-                */
-                ch_bam_control.map{ row -> [row[0].control_group + "_" + row[0].replicate, row] }
-                .cross( ch_bam_target.map{ row -> [row[0].control_group, row] } )
-                .map {
-                    row ->
-                    [ row[1][1][0], row[1][1][1], row[0][1][1] ]
-                }
-                .set { ch_bam_paired }
-                // EXAMPLE CHANNEL STRUCT: [[META], TARGET_BAM, CONTROL_BAM]
-                //ch_bam_paired | view
-
-                MACS2_CALLPEAK_IGG (
-                    ch_bam_paired,
-                    params.macs_gsize
-                )
-                ch_macs2_peaks       = MACS2_CALLPEAK_IGG.out.peak
-                ch_peaks_summits     = MACS2_CALLPEAK_IGG.out.bed
-                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_IGG.out.versions)
-                // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                //MACS2_CALLPEAK_IGG.out.peak | view
-            }
-        }
-        else {
-            /*
-            * MODULE: Call peaks without IgG Control
-            */
-            if('seacr' in callers) {
-                /*
-                * CHANNEL: Add fake control channel
-                */
-                ch_bedgraph_target.map{ row-> [ row[0], row[1], [] ] }
-                .set { ch_bedgraph_target_fctrl }
-                // EXAMPLE CHANNEL STRUCT: [[META], BED, FAKE_CTRL]
-                // ch_bedgraph_target_fctrl | view
-
-                SEACR_CALLPEAK_NOIGG (
-                    ch_bedgraph_target_fctrl,
-                    params.seacr_peak_threshold
-                )
-                ch_seacr_peaks       = SEACR_CALLPEAK_NOIGG.out.bed
-                ch_software_versions = ch_software_versions.mix(SEACR_CALLPEAK_NOIGG.out.versions)
-                // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                //SEACR_NO_IGG.out.bed | view
-            }
-
-            if('macs2' in callers) {
-                /*
-                * CHANNEL: Add fake control channel
-                */
-                ch_bam_target.map{ row-> [ row[0], row[1], [] ] }
-                .set { ch_samtools_bam_target_fctrl }
-                // EXAMPLE CHANNEL STRUCT: [[META], BAM, FAKE_CTRL]
-                //ch_samtools_bam_target_fctrl | view
-
-                MACS2_CALLPEAK_NOIGG (
-                    ch_samtools_bam_target_fctrl,
-                    params.macs_gsize
-                )
-                ch_macs2_peaks       = MACS2_CALLPEAK_NOIGG.out.peak
-                ch_peaks_summits     = MACS2_CALLPEAK_NOIGG.out.bed
-                ch_software_versions = ch_software_versions.mix(MACS2_CALLPEAK_NOIGG.out.versions)
-                // EXAMPLE CHANNEL STRUCT: [[META], BED]
-                // MACS2_CALLPEAK_NOIGG.out.peak | view
-            }
-        }
-
-        if ("macs2" in params.callers) {
-            /*
-            * MODULE: Convert narrow or broad peak to bed
-            */
-            PEAK_TO_BED ( ch_macs2_peaks )
-            ch_macs2_peaks       = PEAK_TO_BED.out.file
+            PEAK_TO_BED ( ch_peaks_split.macs2 )
             ch_software_versions = ch_software_versions.mix(PEAK_TO_BED.out.versions)
-            // EXAMPLE CHANNEL STRUCT: [[META], BED]
-            //PEAK_TO_BED.out.file | view
+            ch_peaks_all = ch_peaks_split.other.mix(PEAK_TO_BED.out.file)
         }
 
         // Identify the primary peak data stream for downstream analysis
-        if(callers[0] == 'seacr') {
-            ch_peaks_primary   = ch_seacr_peaks
-            ch_peaks_secondary = ch_macs2_peaks
-        }
-        if(callers[0] == 'macs2') {
-            ch_peaks_primary   = ch_macs2_peaks
-            ch_peaks_secondary = ch_seacr_peaks
-        }
+        ch_peaks_primary   = ch_peaks_all.filter { it[0].caller == callers[0] }
+        ch_peaks_secondary = ch_peaks_all.filter { it[0].caller != callers[0] }
 
         if(callers[0] == 'seacr') {
             /*
@@ -605,13 +549,28 @@ workflow CUTANDRUN {
             ch_peaks_summits     = AWK_EXTRACT_SUMMITS.out.file
             ch_software_versions = ch_software_versions.mix(AWK_EXTRACT_SUMMITS.out.versions)
             //AWK_EXTRACT_SUMMITS.out.file | view
+        } else if (callers[0].startsWith('macs2')) {
+            def use_macs2_summits = true
+            if (callers[0] == 'macs2_broad') {
+                use_macs2_summits = false
+            } else if (callers[0] == 'macs2' && !params.macs2_narrow_peak) {
+                use_macs2_summits = false
+            }
+            if (use_macs2_summits) {
+                ch_peaks_summits = ch_macs2_summits
+                    .filter { it[0].caller == callers[0] }
+            } else {
+                ch_peaks_summits = ch_peaks_primary
+            }
+        } else {
+            ch_peaks_summits = ch_peaks_primary
         }
 
         /*
         * MODULE: Add sample identifier column to peak beds
         */
         AWK_NAME_PEAK_BED (
-            ch_peaks_primary
+            ch_peaks_all
         )
         ch_software_versions = ch_software_versions.mix(AWK_NAME_PEAK_BED.out.versions)
         // EXAMPLE CHANNEL STRUCT: [[META], BED]
@@ -622,19 +581,15 @@ workflow CUTANDRUN {
             * CHANNEL: Group all samples, filter where the number in the group is > 1
             */
             AWK_NAME_PEAK_BED.out.file
-            .map { row -> [ 1, row[1] ] }
+            .map { row -> [ row[0].caller, row[1] ] }
             .groupTuple(by: [0])
             .map { row ->
                 def new_meta = [:]
-                new_meta.put( "id", "all_samples" )
+                new_meta.put( "id", "all_samples_${row[0]}" )
+                new_meta.put( "caller", row[0] )
+                new_meta.put( "group", "all" )
+                new_meta.put( "condition", "all" )
                 [ new_meta, row[1].flatten() ]
-            }
-            .map { row ->
-                [ row[0], row[1], row[1].size() ]
-            }
-            .filter { row -> row[2] > 1 }
-            .map { row ->
-                [ row[0], row[1] ]
             }
             .set { ch_peaks_bed_all }
             // EXAMPLE CHANNEL STRUCT: [[id: all_samples], [BED1, BED2, BEDn...], count]
@@ -655,10 +610,26 @@ workflow CUTANDRUN {
             /*
             * CHANNEL: Group samples based on group name
             */
+            def consensus_grouping = params.consensus_grouping ?: 'group_condition'
             AWK_NAME_PEAK_BED.out.file
-            .map { row -> [ row[0].group, row[1] ] }
+            .map { row ->
+                def group_key = consensus_grouping == 'group_condition' ? row[0].group_condition : row[0].group
+                [ "${group_key}__${row[0].caller}", row[1], row[0] ]
+            }
             .groupTuple(by: [0])
-            .map { row -> [ [id: row[0]], row[1].flatten() ] }
+            .map { row ->
+                def sample_meta = row[2][0]
+                def conditions = row[2].collect { it.condition }.unique()
+                def condition_label = consensus_grouping == 'group_condition' ? sample_meta.condition : (conditions.size() == 1 ? conditions[0] : 'all')
+                def group_key = consensus_grouping == 'group_condition' ? sample_meta.group_condition : sample_meta.group
+                def new_meta = [
+                    id: "${sample_meta.group}_${condition_label}_${sample_meta.caller}",
+                    group: sample_meta.group,
+                    condition: condition_label,
+                    caller: sample_meta.caller
+                ]
+                [ new_meta, row[1].flatten() ]
+            }
             .set { ch_peaks_bed_group }
             // EXAMPLE CHANNEL STRUCT: [[id: <GROUP>], [BED1, BED2, BEDn...], count]
             //ch_peaks_bed_group | view
@@ -676,6 +647,11 @@ workflow CUTANDRUN {
             // EXAMPLE CHANNEL STRUCT: [[META], BED]
             //CONSENSUS_PEAKS.out.bed | view
         }
+
+        CONTROL_POOLING_FALLBACKS_REPORT (
+            ch_control_fallbacks.toList().ifEmpty([])
+        )
+        ch_software_versions = ch_software_versions.mix(CONTROL_POOLING_FALLBACKS_REPORT.out.versions)
     }
 
     ch_dt_corrmatrix              = Channel.empty()
@@ -783,7 +759,11 @@ workflow CUTANDRUN {
                 * MODULE: Run calc gene matrix for all samples
                 */
                 DEEPTOOLS_COMPUTEMATRIX_GENE_ALL (
-                    ch_bigwig_no_igg.map{it[1]}.toSortedList().map{ [[id:'all_genes'], it]},
+                    ch_bigwig_no_igg
+                        .map { it[1] }
+                        .toSortedList()
+                        .filter { it && it.size() > 0 }
+                        .map { [[id:'all_genes'], it] },
                     PREPARE_GENOME.out.bed.toSortedList()
                 )
 
@@ -837,13 +817,14 @@ workflow CUTANDRUN {
             * SUBWORKFLOW: Run suite of peak QC on peaks
             */
             PEAK_QC(
-                ch_peaks_primary,
+                ch_peaks_all,
                 AWK_NAME_PEAK_BED.out.file,
                 ch_consensus_peaks,
                 ch_consensus_peaks_unfilt,
                 EXTRACT_FRAGMENTS.out.bed,
                 ch_flagstat_target,
                 params.min_frip_overlap,
+                params.consensus_grouping ?: 'group_condition',
                 ch_frip_score_header_multiqc,
                 ch_peak_counts_header_multiqc,
                 ch_peak_counts_consensus_header_multiqc,
@@ -937,6 +918,7 @@ workflow CUTANDRUN {
             ch_dt_corrmatrix.collect{it[1]}.ifEmpty([]),
             ch_dt_pcadata.collect{it[1]}.ifEmpty([]),
             ch_dt_fpmatrix.collect{it[1]}.ifEmpty([]),
+            ch_gopeaks_json.collect{it[1]}.ifEmpty([]),
             ch_peakqc_count_mqc.collect{it[1]}.ifEmpty([]),
             ch_peakqc_frip_mqc.collect{it[1]}.ifEmpty([]),
             ch_peakqc_count_consensus_mqc.collect{it[1]}.ifEmpty([]),

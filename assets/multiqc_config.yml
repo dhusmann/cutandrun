@@ -16,6 +16,7 @@ run_modules:
   - preseq
   - picard
   - deeptools
+  - gopeaks
 
 module_order:
   - fastqc:
@@ -45,6 +46,8 @@ module_order:
       name: "Picard duplication stats"
   - deeptools:
       name: "Fragment QC"
+  - gopeaks:
+      name: "GoPeaks"
   - custom_content
 
 report_section_order:
@@ -81,6 +84,7 @@ extra_fn_clean_trim:
   - "_2"
   - "_1_val_1"
   - "_2_val_2"
+  - "_T[0-9]+"
 
 section_comments:
   fastqc_raw_fastqc_per_base_sequence_content: >
@@ -128,6 +132,9 @@ sp:
     skip: true
   picard/sam_file_validation:
     skip: true
+
+  gopeaks:
+    fn: "*_gopeaks.json"
   picard/variant_calling_metrics:
     skip: true
   picard/wgs_metrics:

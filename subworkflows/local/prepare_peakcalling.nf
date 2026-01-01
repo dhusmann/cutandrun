@@ -92,25 +92,27 @@ workflow PREPARE_PEAKCALLING {
         // EXAMPLE CHANNEL STRUCT: [id, scale_factor]
         //ch_bam_scale_factor | view
 
-        ch_bam_scale_factor_report
-            .map { meta, bam, scale, reads, scope_id ->
-                [
-                    sample_id: meta.id,
-                    group: meta.group,
-                    condition: meta.condition,
-                    replicate: meta.replicate,
-                    spikein_reads: reads,
-                    scale_factor: scale,
-                    scope_id: scope_id
-                ]
-            }
-            .map { record -> [ record.scope_id, record ] }
-            .groupTuple(by: [0])
-            .map { scope_id, records -> [ scope_id, records ] }
-            .set { ch_norm_factors }
+        if (params.dump_scale_factors) {
+            ch_bam_scale_factor_report
+                .map { meta, bam, scale, reads, scope_id ->
+                    [
+                        sample_id: meta.id,
+                        group: meta.group,
+                        condition: meta.condition,
+                        replicate: meta.replicate,
+                        spikein_reads: reads,
+                        scale_factor: scale,
+                        scope_id: scope_id
+                    ]
+                }
+                .map { record -> [ record.scope_id, record ] }
+                .groupTuple(by: [0])
+                .map { scope_id, records -> [ scope_id, records ] }
+                .set { ch_norm_factors }
 
-        NORMALISATION_FACTORS_REPORT ( ch_norm_factors )
-        ch_versions = ch_versions.mix(NORMALISATION_FACTORS_REPORT.out.versions)
+            NORMALISATION_FACTORS_REPORT ( ch_norm_factors )
+            ch_versions = ch_versions.mix(NORMALISATION_FACTORS_REPORT.out.versions)
+        }
     }
     else if (norm_mode == "None") {
         /*

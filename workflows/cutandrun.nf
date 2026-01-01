@@ -816,11 +816,23 @@ workflow CUTANDRUN {
             /*
             * SUBWORKFLOW: Run suite of peak QC on peaks
             */
+            AWK_NAME_PEAK_BED.out.file
+                .filter { it[0].caller == callers[0] }
+                .set { ch_peaks_with_ids_primary }
+
+            ch_consensus_peaks
+                .filter { it[0].caller == callers[0] }
+                .set { ch_consensus_peaks_primary }
+
+            ch_consensus_peaks_unfilt
+                .filter { it[0].caller == callers[0] }
+                .set { ch_consensus_peaks_unfilt_primary }
+
             PEAK_QC(
-                ch_peaks_all,
-                AWK_NAME_PEAK_BED.out.file,
-                ch_consensus_peaks,
-                ch_consensus_peaks_unfilt,
+                ch_peaks_primary,
+                ch_peaks_with_ids_primary,
+                ch_consensus_peaks_primary,
+                ch_consensus_peaks_unfilt_primary,
                 EXTRACT_FRAGMENTS.out.bed,
                 ch_flagstat_target,
                 params.min_frip_overlap,

@@ -34,6 +34,10 @@ workflow PEAK_CALLING_EXTENDED {
     ch_gopeaks_json = Channel.empty()
 
     def primary_caller = callers ? callers[0] : 'seacr'
+    def control_required_callers = callers.findAll { it.startsWith('epic2_') || it.startsWith('span_') }
+    if (control_required_callers && !params.use_control) {
+        exit 1, "Peak callers requiring controls (${control_required_callers.join(', ')}) cannot be run with --use_control false. Remove these callers or enable controls with --use_control true."
+    }
 
     // Build control condition map by control group
     def build_control_condition_map = { ch_control ->

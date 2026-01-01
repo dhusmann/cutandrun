@@ -142,7 +142,7 @@ class WorkflowCutandrun {
             return 'hg19'
         }
         if (['grcm39','mm39'].contains(genome_key)) {
-            return 'mm10'
+            return 'mm39'
         }
         if (['grcm38','mm10'].contains(genome_key)) {
             return 'mm10'

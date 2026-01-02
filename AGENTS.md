@@ -3,25 +3,18 @@
 ## SLURM job monitoring (Codex sessions)
 
 **What went wrong previously**
-- Monitoring used many short-lived `squeue` polls across separate exec sessions; once the 60-session limit was hit, the polling stopped and the job completion was missed.
+- Monitoring spawned many short-lived `squeue` polls across separate exec sessions; once the 60-session cap was hit, polling stopped and the job completion was missed.
 
-**Use this single-session loop instead**
-1) Submit the job and capture the JobID:
-   - `sbatch /path/to/script.sh` → save the JobID
-2) Monitor in one long-running session (do not start new sessions for each poll):
-   - Example:
-     ```bash
-     JOBID=123456
-     LOG=/scratch/users/dhusmann/nextflow-work/logs/pytest_full_${JOBID}.out
-     ERR=/scratch/users/dhusmann/nextflow-work/logs/pytest_full_${JOBID}.err
-     while squeue -j "$JOBID" -h | grep -q .; do
-       date
-       squeue -j "$JOBID" -o "%.18i %.9P %.8j %.8u %.2t %.10M %.6D %R"
-       [ -f "$LOG" ] && tail -n 5 "$LOG"
-       [ -f "$ERR" ] && tail -n 5 "$ERR"
-       sleep 300
-     done
-     echo "Job $JOBID no longer in queue"
-     sacct -j "$JOBID" -X --format=JobID,State,ExitCode,Elapsed
-     ```
-3) If `squeue` shows nothing, always confirm completion with `sacct` and then inspect the log files.
+**Standard monitoring process (use sherlock-slurm-operator helpers)**
+1) Submit via the helper so a watcher is created automatically:
+   - `~/.codex/skills/sherlock-slurm-operator/scripts/slurm_run.sh -n <jobname> -p hns -c <cpus> -m <mem> -t <time> -- <command>`
+   - Capture the printed JobID and run directory.
+2) The watcher writes compact status lines to:
+   - `<run_dir>/status/latest.txt` (single line)
+   - `<run_dir>/status/watch.tsv` (append-only)
+3) Monitor without creating new exec sessions:
+   - Preferred (blocking, quiet): `~/.codex/skills/sherlock-slurm-operator/scripts/slurm_wait.sh <jobid> 60 <run_dir>`
+   - Or periodically read one line: `cat <run_dir>/status/latest.txt`
+4) After completion, confirm with:
+   - `sacct -j <jobid> -o JobIDRaw,State,ExitCode,Elapsed -P -n`
+   - If not `COMPLETED 0:0`, inspect the last ~50 lines of `logs/<jobname>_<jobid>.err`.

@@ -80,7 +80,7 @@ workflow PREPARE_PEAKCALLING {
                 .map { meta, bam, reads, scope_id -> [ scope_id, meta, bam, reads ] }
                 .join ( ch_scope_ref )
                 .map { scope_id, meta, bam, reads, ref ->
-                    def scale = ref / (reads != 0 ? reads : ref)
+                    def scale = (ref == 0 || reads == 0) ? 1 : ref / reads
                     [ meta, bam, scale, reads, scope_id ]
                 }
                 .set { ch_bam_scale_factor_report }

@@ -1,7 +1,7 @@
 process DIFFBIND_RUN {
     label 'process_diffbind'
 
-    conda "conda-forge::r-base=4.2.3 bioconda::bioconductor-diffbind"
+    conda "conda-forge::r-base=4.2.3 bioconda::bioconductor-diffbind conda-forge::r-jsonlite conda-forge::r-yaml"
     container "quay.io/biocontainers/bioconductor-diffbind:3.14.0--r42_0"
 
     input:

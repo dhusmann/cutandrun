@@ -23,6 +23,59 @@ parse_args <- function(args) {
     res
 }
 
+read_extra_params <- function(path) {
+    if (is.null(path) || !nzchar(path)) {
+        return(list())
+    }
+    if (!file.exists(path)) {
+        stop(sprintf("extra_params file not found: %s", path))
+    }
+    ext <- tolower(tools::file_ext(path))
+    if (ext %in% c("yml", "yaml")) {
+        if (!requireNamespace("yaml", quietly = TRUE)) {
+            stop("YAML extra_params requires the 'yaml' R package; install it or provide JSON instead.")
+        }
+        return(yaml::yaml.load_file(path))
+    }
+    if (requireNamespace("jsonlite", quietly = TRUE)) {
+        return(jsonlite::fromJSON(path, simplifyVector = FALSE))
+    }
+    if (requireNamespace("rjson", quietly = TRUE)) {
+        return(rjson::fromJSON(file = path))
+    }
+    stop("JSON extra_params requires the 'jsonlite' or 'rjson' R package.")
+}
+
+extra_params_for <- function(extra, key) {
+    if (is.null(extra) || !is.list(extra)) {
+        return(list())
+    }
+    if (!is.null(extra[[key]])) {
+        return(extra[[key]])
+    }
+    key_dot <- gsub("_", ".", key)
+    if (!is.null(extra[[key_dot]])) {
+        return(extra[[key_dot]])
+    }
+    key_us <- gsub("\\.", "_", key)
+    if (!is.null(extra[[key_us]])) {
+        return(extra[[key_us]])
+    }
+    return(list())
+}
+
+resolve_constants <- function(value) {
+    if (is.list(value)) {
+        return(lapply(value, resolve_constants))
+    }
+    if (is.character(value) && length(value) == 1) {
+        if (exists(value, envir = asNamespace("DiffBind"), inherits = FALSE)) {
+            return(get(value, envir = asNamespace("DiffBind")))
+        }
+    }
+    value
+}
+
 as_bool <- function(val) {
     if (is.null(val)) {
         return(FALSE)
@@ -49,6 +102,8 @@ recenter <- as_bool(params[["recenter"]])
 summits <- as.integer(params[["summits"]])
 norm_method <- params[["norm_method"]]
 export_sheets <- as_bool(params[["export_sheets"]])
+extra_params_path <- params[["extra_params"]]
+extra_params <- read_extra_params(extra_params_path)
 
 use_spikein <- as_bool(params[["use_spikein"]])
 
@@ -165,10 +220,13 @@ if (!use_diffbind) {
 # Best-effort DiffBind execution
 tryCatch({
     suppressPackageStartupMessages(library(DiffBind))
+    extra_params <- resolve_constants(extra_params)
 
-    dba_obj <- dba(sampleSheet = samplesheet)
+    dba_args <- utils::modifyList(list(sampleSheet = samplesheet), extra_params_for(extra_params, "dba"))
+    dba_obj <- do.call(dba, dba_args)
     summit_size <- if (recenter) summits else 0
-    dba_obj <- dba.count(dba_obj, summits = summit_size, minOverlap = min_overlap)
+    count_args <- utils::modifyList(list(DBA = dba_obj, summits = summit_size, minOverlap = min_overlap), extra_params_for(extra_params, "dba_count"))
+    dba_obj <- do.call(dba.count, count_args)
 
     if (use_spikein && "spikein_scale_factor" %in% colnames(records)) {
         factors <- suppressWarnings(as.numeric(records$spikein_scale_factor))
@@ -176,21 +234,26 @@ tryCatch({
             size_factors <- ifelse(factors == 0, 1, 1 / factors)
             names(size_factors) <- records$sample_id
             size_factors <- size_factors[samplesheet$SampleID]
-            dba_obj <- dba.normalize(dba_obj, normalize = DBA_NORM_LIB, library = size_factors)
+            norm_args <- utils::modifyList(list(DBA = dba_obj, normalize = DBA_NORM_LIB, library = size_factors), extra_params_for(extra_params, "dba_normalize"))
+            dba_obj <- do.call(dba.normalize, norm_args)
             norm_out <- data.frame(sample_id = samplesheet$SampleID, size_factor = size_factors, stringsAsFactors = FALSE)
             write.table(norm_out, file = file.path(outdir, "diffbind.normalization_factors.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
         }
     } else if (!is.null(norm_method) && norm_method != "native") {
-        dba_obj <- dba.normalize(dba_obj, method = norm_method)
+        norm_args <- utils::modifyList(list(DBA = dba_obj, method = norm_method), extra_params_for(extra_params, "dba_normalize"))
+        dba_obj <- do.call(dba.normalize, norm_args)
     }
 
     contrast_labels <- strsplit(contrast, ",")[[1]]
-    dba_obj <- dba.contrast(dba_obj, categories = DBA_CONDITION, group1 = contrast_labels[1], group2 = contrast_labels[2])
+    contrast_args <- utils::modifyList(list(DBA = dba_obj, categories = DBA_CONDITION, group1 = contrast_labels[1], group2 = contrast_labels[2]), extra_params_for(extra_params, "dba_contrast"))
+    dba_obj <- do.call(dba.contrast, contrast_args)
 
     method_flag <- ifelse(toupper(backend) == "EDGER", DBA_EDGER, DBA_DESEQ2)
-    dba_obj <- dba.analyze(dba_obj, method = method_flag)
+    analyze_args <- utils::modifyList(list(DBA = dba_obj, method = method_flag), extra_params_for(extra_params, "dba_analyze"))
+    dba_obj <- do.call(dba.analyze, analyze_args)
 
-    report <- dba.report(dba_obj, th = fdr, fold = lfc)
+    report_args <- utils::modifyList(list(DBA = dba_obj, th = fdr, fold = lfc), extra_params_for(extra_params, "dba_report"))
+    report <- do.call(dba.report, report_args)
     results <- as.data.frame(report)
     results_out <- data.frame(
         chr = results$seqnames,

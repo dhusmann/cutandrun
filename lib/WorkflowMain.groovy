@@ -44,8 +44,10 @@ class WorkflowMain {
         // Check AWS batch settings
         NfcoreTemplate.awsBatch(workflow, params)
 
-        // Check input has been provided
-        if (!params.input) {
+        // Check input has been provided unless running differential-only
+        def entry = workflow.hasProperty('entry') ? workflow.entry : null
+        def differential_only = entry == 'DIFFERENTIAL_ONLY'
+        if (!params.input && !(differential_only && params.differential_from_run)) {
             Nextflow.error("Please provide an input samplesheet to the pipeline e.g. '--input samplesheet.csv'")
         }
     }

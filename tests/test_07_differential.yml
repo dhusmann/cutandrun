@@ -1,0 +1,18 @@
+- name: test_differential_missing_contrast
+  command: nextflow run main.nf -profile docker,test --run_diffbind --differential_contrast Treated --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq -c tests/config/nextflow.config
+  tags:
+    - test_differential
+    - test_differential_missing_contrast
+  exit_code: 1
+
+- name: test_differential_manifests_only
+  command: nextflow run main.nf -profile docker,test --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --run_diffbind --differential_contrast Treatment,Control --differential_min_replicates 1 --differential_publish_manifest_only --input tests/assets/samplesheet_condition.csv -c tests/config/nextflow.config
+  tags:
+    - test_differential
+    - test_differential_manifests_only
+  files:
+    - path: results/03_peak_calling/08_differential/00_manifests/differential_manifest.samples.tsv
+    - path: results/03_peak_calling/08_differential/00_manifests/differential_manifest.peaks.tsv
+    - path: results/03_peak_calling/08_differential/00_manifests/differential_manifest.design.tsv
+    - path: results/03_peak_calling/08_differential/multiqc/differential_summary_mqc.tsv
+    - path: results/03_peak_calling/08_differential/multiqc/differential_design_mqc.tsv

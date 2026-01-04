@@ -31,6 +31,7 @@
      - 6.8. [epic2 peak calling](#epic2peakcalling)
      - 6.9. [SPAN/OmniPeaks peak calling](#SPANpeakcalling)
      - 6.10. [Consensus Peaks](#ConsensusPeaks)
+     - 6.11. [Differential analysis](#DifferentialAnalysis)
 - 7. [Peak-based QC](#Peak-basedQC)
      - 7.1. [Peak Counts](#PeakCounts)
      - 7.2. [Peak Reproducibility](#PeakReproducibility)
@@ -437,6 +438,40 @@ SPAN/OmniPeaks callers require pooled controls and the `--omnipeaks_jar` paramet
 </details>
 
 The merge function from [BEDtools](https://github.com/arq5x/bedtools2) is used to merge replicate peaks of the same experimental group (by `group` or `group_condition`) to create a consensus peak set. This can then optionally be filtered for consensus peaks contributed to be a threshold number of replicates using `--replicate_threshold`.
+
+### 6.11. <a name='DifferentialAnalysis'></a>Differential analysis
+
+<details markdown="1">
+<summary>Output files</summary>
+
+- `03_peak_calling/08_differential/00_manifests/`
+  - `differential_manifest.samples.tsv`: per-sample manifest with BAM/BAI, scale factors, and bigWig paths.
+  - `differential_manifest.peaks.tsv`: per-sample per-caller peak paths and formats.
+  - `differential_manifest.design.tsv`: eligibility and status table for each comparison.
+- `03_peak_calling/08_differential/01_diffbind/<caller>/<group>/`
+  - `diffbind.results.tsv`: full DiffBind results.
+  - `diffbind.results.annotated.tsv`: DiffBind results annotated with nearest gene.
+  - `diffbind.significant*.bed`: significant peaks split by direction.
+  - `diffbind.summary.tsv`: one-row summary for MultiQC.
+- `03_peak_calling/08_differential/02_chipbinner/<group>/`
+  - `chipbinner.*.tsv` and `chipbinner.*.csv`: ChIPBinner matrices and summaries.
+  - `chipbinner.differential.annotated.tsv`: annotated differential bins.
+  - `chipbinner.summary.tsv`: one-row summary for MultiQC.
+- `03_peak_calling/08_differential/03_span/<group>/`
+  - `span.differential.tsv`: SPAN/OmniPeak differential table (native or fallback).
+  - `span.differential.peaks.bed`: differential regions as BED.
+  - `span.differential.annotated.tsv`: annotated differential regions.
+  - `span.up.bed`, `span.down.bed`: direction-specific BEDs.
+  - `span.summary.tsv`: one-row summary for MultiQC.
+  - `span.mode.txt`: mode and signature note.
+- `03_peak_calling/08_differential/multiqc/`
+  - `differential_summary_mqc.tsv`: combined method summary table for MultiQC.
+  - `differential_design_mqc.tsv`: design/eligibility table for MultiQC.
+  - `differential_multiqc_report.html`: optional differential-only MultiQC report.
+
+</details>
+
+Differential analysis is enabled with `--run_diffbind`, `--run_chipbinner`, and/or `--run_span_diff` plus a `--differential_contrast` definition. The pipeline always writes manifests and design tables when any differential option is enabled, even if specific comparisons are skipped.
 
 ## 7. <a name='Peak-basedQC'></a>Peak-based QC
 

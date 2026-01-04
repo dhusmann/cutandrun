@@ -167,6 +167,42 @@ If control samples are provided in the sample sheet, they will be used to normal
 
 After peak calling, consensus peaks are calculated by merging peaks within the same grouping key. Use `--consensus_grouping` to choose `group` or `group_condition`. By default, if the samplesheet includes a `condition` column, grouping uses `group_condition`; otherwise it falls back to `group`. The number of replicates required for a valid peak can be changed using `replicate_threshold`. To call consensus peaks across all samples, set `--consensus_peak_mode all`.
 
+### Differential analysis (optional)
+
+Differential analysis runs on peak-calling outputs and compares two conditions per group. The contrast is defined as `treated,control` and determines the log2FC direction (treated/control). Enable one or more methods with `--run_diffbind`, `--run_chipbinner`, or `--run_span_diff`, and provide `--differential_contrast`.
+
+Key options:
+
+- `--differential_contrast "Treatment,Control"` (required when any method is enabled)
+- `--differential_min_replicates` (default: 2)
+- `--differential_allow_partial` (skip invalid comparisons instead of failing)
+- `--differential_groups` / `--differential_callers` (comma-separated allowlists)
+- `--differential_publish_manifest_only` (write manifests + design tables only)
+- `--differential_multiqc_report` (emit a differential-only MultiQC report)
+
+Integrated example:
+
+```bash
+nextflow run nf-core/cutandrun \
+  --input samplesheet.csv \
+  --genome GRCh37 \
+  --run_diffbind \
+  --differential_contrast "Treatment,Control" \
+  -profile docker
+```
+
+Posthoc example (no upstream rerun):
+
+```bash
+nextflow run main.nf -entry DIFFERENTIAL_ONLY \
+  --differential_from_run /path/to/prior/results \
+  --run_diffbind \
+  --differential_contrast "Treatment,Control" \
+  --gene_bed /path/to/genes.bed
+```
+
+When running `--run_chipbinner` in differential-only mode, you must provide `--fasta` so chrom sizes can be derived. When running `--run_span_diff`, you must provide `--omnipeaks_jar`.
+
 ### Reproducibility
 
 It is a good idea to specify a pipeline version when running the pipeline on your data. This ensures that a specific version of the pipeline code and software are used when you run your pipeline. If you keep using the same tag, you'll be running the same version of the pipeline, even if there have been changes to the code since.

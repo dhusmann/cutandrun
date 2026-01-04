@@ -24,6 +24,7 @@ workflow PREPARE_PEAKCALLING {
     main:
     ch_versions = Channel.empty()
     ch_bedgraph = Channel.empty()
+    ch_scale_factors = Channel.empty()
     def norm_scope = normalisation_scope ?: 'all'
     def igg_scope  = igg_scale_scope ?: 'legacy'
     def median = { List values ->
@@ -92,6 +93,10 @@ workflow PREPARE_PEAKCALLING {
         // EXAMPLE CHANNEL STRUCT: [id, scale_factor]
         //ch_bam_scale_factor | view
 
+        ch_bam_scale_factor_report
+            .map { meta, bam, scale, reads, scope_id -> [ meta, scale ] }
+            .set { ch_scale_factors }
+
         if (params.dump_scale_factors) {
             ch_bam_scale_factor_report
                 .map { meta, bam, scale, reads, scope_id ->
@@ -123,6 +128,9 @@ workflow PREPARE_PEAKCALLING {
             }
             .set { ch_bam_scale_factor }
         //ch_bam_scale_factor | view
+
+        ch_bam.map { row -> [ row[0], 'NA' ] }
+            .set { ch_scale_factors }
     }
 
     if (norm_mode == "Spikein" || norm_mode == "None") {
@@ -264,6 +272,10 @@ workflow PREPARE_PEAKCALLING {
         // EXAMPLE CHANNEL STRUCT: [[META], BAM, BAI]
         //ch_bedgraph | view
 
+        ch_bam_bai_scale_factor
+            .map { meta, bam, bai, scale -> [ meta, 'NA' ] }
+            .set { ch_scale_factors }
+
     }
 
     /*
@@ -301,5 +313,6 @@ workflow PREPARE_PEAKCALLING {
     emit:
     bedgraph = UCSC_BEDCLIP.out.bedgraph        // channel: [ val(meta), [ bedgraph ] ]
     bigwig   = UCSC_BEDGRAPHTOBIGWIG.out.bigwig // channel: [ val(meta), [ bigwig ] ]
+    scale_factors = ch_scale_factors           // channel: [ val(meta), scale_factor ]
     versions = ch_versions                      // channel: [ versions.yml ]
 }

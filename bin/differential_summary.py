@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+import argparse
+import csv
+import os
+
+
+def read_tsv(path):
+    with open(path, "r", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        return [row for row in reader]
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Build differential summary table")
+    parser.add_argument("--design", required=True)
+    parser.add_argument("--summaries", nargs="*", default=[])
+    parser.add_argument("--out", required=True)
+    args = parser.parse_args()
+
+    design_rows = read_tsv(args.design)
+
+    base_rows = {}
+    for row in design_rows:
+        group = row.get("group") or ""
+        caller = row.get("caller") or "NA"
+        treated = row.get("treated_condition") or ""
+        control = row.get("control_condition") or ""
+        status = row.get("status") or ""
+        reason = row.get("reason") or ""
+
+        if caller != "NA":
+            key = ("diffbind", group, caller)
+            base_rows[key] = {
+                "method": "diffbind",
+                "group": group,
+                "caller": caller,
+                "treated": treated,
+                "control": control,
+                "n_tested": "0",
+                "n_fdr_pass": "0",
+                "n_up": "0",
+                "n_down": "0",
+                "mode": "NA",
+                "status": status,
+                "reason": reason,
+            }
+        else:
+            for method in ("chipbinner", "span"):
+                key = (method, group, "NA")
+                base_rows[key] = {
+                    "method": method,
+                    "group": group,
+                    "caller": "NA",
+                    "treated": treated,
+                    "control": control,
+                    "n_tested": "0",
+                    "n_fdr_pass": "0",
+                    "n_up": "0",
+                    "n_down": "0",
+                    "mode": "NA",
+                    "status": status,
+                    "reason": reason,
+                }
+
+    for summary_path in args.summaries:
+        if not summary_path or not os.path.exists(summary_path):
+            continue
+        rows = read_tsv(summary_path)
+        if not rows:
+            continue
+        fname = os.path.basename(summary_path)
+        if "diffbind" in fname:
+            method = "diffbind"
+        elif "chipbinner" in fname:
+            method = "chipbinner"
+        elif "span" in fname:
+            method = "span"
+        else:
+            continue
+        for row in rows:
+            group = row.get("group") or ""
+            caller = row.get("caller") or (row.get("caller_id") or "NA")
+            key = (method, group, caller)
+            base_rows[key] = {
+                "method": method,
+                "group": group,
+                "caller": caller,
+                "treated": row.get("treated") or row.get("treated_condition") or "",
+                "control": row.get("control") or row.get("control_condition") or "",
+                "n_tested": row.get("n_tested") or row.get("n_bins_tested") or "0",
+                "n_fdr_pass": row.get("n_fdr_pass") or "0",
+                "n_up": row.get("n_up") or "0",
+                "n_down": row.get("n_down") or "0",
+                "mode": row.get("mode") or "NA",
+                "status": row.get("status") or "RUN",
+                "reason": row.get("reason") or "ok",
+            }
+
+    header = [
+        "method",
+        "group",
+        "caller",
+        "treated",
+        "control",
+        "n_tested",
+        "n_fdr_pass",
+        "n_up",
+        "n_down",
+        "mode",
+        "status",
+        "reason",
+    ]
+
+    rows_sorted = sorted(base_rows.values(), key=lambda r: (r["method"], r["group"], r["caller"]))
+
+    with open(args.out, "w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=header, delimiter="\t")
+        writer.writeheader()
+        writer.writerows(rows_sorted)
+
+
+if __name__ == "__main__":
+    main()

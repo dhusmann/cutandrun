@@ -74,8 +74,13 @@ def main():
                 continue
             parts = line.split("\t")
             idx = int(parts[3])
-            gene_id = parts[7] if len(parts) > 7 else "NA"
+            a_cols = 4
             distance = parts[-1] if parts else "NA"
+            b_cols = len(parts) - a_cols - 1
+            if b_cols >= 4:
+                gene_id = parts[a_cols + 3]
+            else:
+                gene_id = "NA"
             annotations[idx] = (gene_id, gene_id, distance)
 
     with open(args.out, "w") as handle:

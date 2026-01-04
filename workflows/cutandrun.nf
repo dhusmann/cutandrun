@@ -6,8 +6,11 @@
 
 include { paramsSummaryLog; paramsSummaryMap } from 'plugin/nf-validation'
 
-// Validate input parameters in specialised library
-WorkflowCutandrun.initialise(params, log)
+// Validate input parameters in specialised library (skip for differential-only entrypoint)
+def entry = workflow.hasProperty('entry') ? workflow.entry : null
+if (entry != 'DIFFERENTIAL_ONLY') {
+    WorkflowCutandrun.initialise(params, log)
+}
 def logo = NfcoreTemplate.logo(workflow, params.monochrome_logs)
 def citation = '\n' + WorkflowMain.citation(workflow) + '\n'
 def summary_params = paramsSummaryMap(workflow)

@@ -67,13 +67,13 @@ def check_samplesheet(file_in, file_out, use_control):
     """
     This function checks that the samplesheet follows the following structure:
 
-    group,replicate,fastq_1,fastq_2,control
-    WT,1,WT_LIB1_REP1_1.fastq.gz,WT_LIB1_REP1_2.fastq.gz,CONTROL_GROUP
-    WT,1,WT_LIB2_REP1_1.fastq.gz,WT_LIB2_REP1_2.fastq.gz,CONTROL_GROUP
-    WT,2,WT_LIB1_REP2_1.fastq.gz,WT_LIB1_REP2_2.fastq.gz,CONTROL_GROUP
-    KO,1,KO_LIB1_REP1_1.fastq.gz,KO_LIB1_REP1_2.fastq.gz,CONTROL_GROUP
-    CONTROL_GROUP,1,KO_LIB1_REP1_1.fastq.gz,IGG_LIB1_REP1_2.fastq.gz,
-    CONTROL_GROUP,2,KO_LIB1_REP1_1.fastq.gz,IGG_LIB1_REP1_2.fastq.gz,
+    group,condition,replicate,fastq_1,fastq_2,control
+    WT,Control,1,WT_LIB1_REP1_1.fastq.gz,WT_LIB1_REP1_2.fastq.gz,CONTROL_GROUP
+    WT,Control,1,WT_LIB2_REP1_1.fastq.gz,WT_LIB2_REP1_2.fastq.gz,CONTROL_GROUP
+    WT,Control,2,WT_LIB1_REP2_1.fastq.gz,WT_LIB1_REP2_2.fastq.gz,CONTROL_GROUP
+    KO,Treatment,1,KO_LIB1_REP1_1.fastq.gz,KO_LIB1_REP1_2.fastq.gz,CONTROL_GROUP
+    CONTROL_GROUP,Control,1,KO_LIB1_REP1_1.fastq.gz,IGG_LIB1_REP1_2.fastq.gz,
+    CONTROL_GROUP,Control,2,KO_LIB1_REP1_1.fastq.gz,IGG_LIB1_REP1_2.fastq.gz,
     """
 
     # Init
@@ -82,26 +82,39 @@ def check_samplesheet(file_in, file_out, use_control):
     sample_names_list = []
     control_names_list = []
     sample_run_dict = {}
+    control_condition_map = {}
 
     with open(file_in, "r") as fin:
         ## Check header
-        MIN_COLS = 3
         LEGACY_HEADER = ["group", "replicate", "control_group", "fastq_1", "fastq_2"]
-        HEADER = ["group", "replicate", "fastq_1", "fastq_2", "control"]
-        HEADER_LEN = len(HEADER)
+        HEADER_WITH_CONDITION = ["group", "condition", "replicate", "fastq_1", "fastq_2", "control"]
+        HEADER_LEGACY = ["group", "replicate", "fastq_1", "fastq_2", "control"]
         header = [x.strip('"') for x in fin.readline().strip().split(",")]
 
         if len(header) >= len(LEGACY_HEADER) and header[: len(LEGACY_HEADER)] == LEGACY_HEADER:
             print(
                 "ERROR: It looks like you are using a legacy header format with a newer version of the pipeline -> {} != {}".format(
-                    ",".join(header), ",".join(HEADER)
+                    ",".join(header), ",".join(HEADER_WITH_CONDITION)
                 )
             )
             sys.exit(1)
 
-        if header[: len(HEADER)] != HEADER:
-            print("ERROR: Please check samplesheet header -> {} != {}".format(",".join(header), ",".join(HEADER)))
+        has_condition = False
+        if header[: len(HEADER_WITH_CONDITION)] == HEADER_WITH_CONDITION:
+            has_condition = True
+            HEADER = HEADER_WITH_CONDITION
+        elif header[: len(HEADER_LEGACY)] == HEADER_LEGACY:
+            HEADER = HEADER_LEGACY
+        else:
+            print(
+                "ERROR: Please check samplesheet header -> {} != {} or {}".format(
+                    ",".join(header), ",".join(HEADER_WITH_CONDITION), ",".join(HEADER_LEGACY)
+                )
+            )
             sys.exit(1)
+
+        HEADER_LEN = len(HEADER)
+        MIN_COLS = 4 if has_condition else 3
 
         ## Check sample entries
         line_no = 1
@@ -122,10 +135,6 @@ def check_samplesheet(file_in, file_out, use_control):
                     line,
                 )
 
-            ## Set control_present to true if the control column is not empty
-            if lspl[4] != "":
-                control_present = True
-
             ## Check valid number of populated columns per row
             num_cols = len([x for x in lspl if x])
             if num_cols < MIN_COLS:
@@ -136,12 +145,28 @@ def check_samplesheet(file_in, file_out, use_control):
                 )
 
             ## Check sample name entries
-            sample, replicate, fastq_1, fastq_2, control = lspl[: len(HEADER)]
+            if has_condition:
+                sample, condition, replicate, fastq_1, fastq_2, control = lspl[: len(HEADER)]
+            else:
+                sample, replicate, fastq_1, fastq_2, control = lspl[: len(HEADER)]
+                condition = "NA"
+
+            if control != "":
+                control_present = True
+
+            condition_missing = False
+            if has_condition and condition == "":
+                condition_missing = True
+                condition = "NA"
             if sample:
                 if sample.find(" ") != -1:
                     print_error("Group entry contains spaces!", "Line", line)
             else:
                 print_error("Group entry has not been specified!", "Line", line)
+
+            if condition:
+                if condition.find(" ") != -1:
+                    print_error("Condition entry contains spaces!", "Line", line)
 
             if control:
                 if control.find(" ") != -1:
@@ -179,22 +204,23 @@ def check_samplesheet(file_in, file_out, use_control):
             ## Auto-detect paired-end/single-end
             sample_info = []
             if sample and fastq_1 and fastq_2:  ## Paired-end short reads
-                sample_info = [sample, str(replicate), control, "0", fastq_1, fastq_2]
+                sample_info = [sample, condition, str(replicate), control, "0", fastq_1, fastq_2, condition_missing]
             elif sample and fastq_1 and not fastq_2:  ## Single-end short reads
-                sample_info = [sample, str(replicate), control, "1", fastq_1, fastq_2]
+                sample_info = [sample, condition, str(replicate), control, "1", fastq_1, fastq_2, condition_missing]
             else:
                 print_error("Invalid combination of columns provided!", "Line", line)
 
             ## Create sample mapping dictionary = {sample: {replicate : [ single_end, fastq_1, fastq_2 ]}}
-            if sample not in sample_run_dict:
-                sample_run_dict[sample] = {}
-            if replicate not in sample_run_dict[sample]:
-                sample_run_dict[sample][replicate] = [sample_info]
+            sample_key = (sample, condition)
+            if sample_key not in sample_run_dict:
+                sample_run_dict[sample_key] = {}
+            if replicate not in sample_run_dict[sample_key]:
+                sample_run_dict[sample_key][replicate] = [sample_info]
             else:
-                if sample_info in sample_run_dict[sample][replicate]:
+                if sample_info in sample_run_dict[sample_key][replicate]:
                     print_error("Samplesheet contains duplicate rows!", "Line", line)
                 else:
-                    sample_run_dict[sample][replicate].append(sample_info)
+                    sample_run_dict[sample_key][replicate].append(sample_info)
 
             ## Store unique sample names
             if sample not in sample_names_list:
@@ -218,18 +244,21 @@ def check_samplesheet(file_in, file_out, use_control):
             )
 
     ## Create control identity variable
-    for sample in sorted(sample_run_dict.keys()):
-        for replicate in sorted(sample_run_dict[sample].keys()):
-            for idx, sample_info in enumerate(sample_run_dict[sample][replicate]):
+    for sample_key in sorted(sample_run_dict.keys()):
+        for replicate in sorted(sample_run_dict[sample_key].keys()):
+            for idx, sample_info in enumerate(sample_run_dict[sample_key][replicate]):
                 if control_present:
                     if sample_info[0] in control_names_list:
                         sample_info.append("1")
-                        if sample_info[2] != "":
+                        if sample_info[3] != "":
                             print_error("Control cannot have a control: {}.".format(sample_info[0]))
                     else:
                         sample_info.append("0")
                 else:
                     sample_info.append("0")
+
+                if has_condition and sample_info[-1] == "0" and sample_info[7]:
+                    print_error("Condition entry has not been specified!", "Line", ",".join(sample_info[:7]))
 
     ## Check use_control parameter is consistent with input groups
     if use_control == "true" and not control_present:
@@ -244,33 +273,28 @@ def check_samplesheet(file_in, file_out, use_control):
             "WARNING: Parameter --use_control was set to false, but an control group was found in " + str(file_in) + "."
         )
 
-    # Calculate the exact control/replicate id combo
-    if use_control == "true":
-        for group, reps in sorted(sample_run_dict.items()):
-            # Calculate the ctrl group
-            ctrl_group = None
-            is_ctrl = False
-            for replicate, info in sorted(reps.items()):
-                ctrl_group = info[0][2]
-                if ctrl_group == "":
-                    is_ctrl = True
-                break
+    # Build map of control conditions per control group
+    if control_present:
+        for sample_key, reps in sample_run_dict.items():
+            for replicate, infos in reps.items():
+                for info in infos:
+                    if info[-1] == "1":
+                        control_condition_map.setdefault(info[0], set()).add(info[1])
 
-            # Continue if ctrl
-            if is_ctrl:
-                continue
-
-            # Get num reps
-            num_reps = len(reps)
-            num_ctrl_reps = len(sample_run_dict[ctrl_group])
-
-            # Assign actual ctrl rep id
-            for rep, info in sorted(reps.items()):
-                if num_reps == num_ctrl_reps:
-                    ctrl_group_new = ctrl_group + "_" + str(rep)
-                else:
-                    ctrl_group_new = ctrl_group + "_1"
-                info[0][2] = ctrl_group_new
+        # Warn on condition mismatch between targets and controls
+        for sample_key, reps in sample_run_dict.items():
+            for replicate, infos in reps.items():
+                for info in infos:
+                    if info[-1] == "0" and info[3] != "":
+                        ctrl_conditions = control_condition_map.get(info[3], set())
+                        if ctrl_conditions and info[1] not in ctrl_conditions and "NA" not in ctrl_conditions:
+                            sample_id = "{}_{}_rep{}".format(info[0], info[1], info[2])
+                            print(
+                                "WARNING: No control found for target condition; will fall back to other conditions if available.\n"
+                                "Target sample_id: {} | control_group: {} | expected condition: {}".format(
+                                    sample_id, info[3], info[1]
+                                )
+                            )
 
     ## Write validated samplesheet with appropriate columns
     if len(sample_run_dict) > 0:
@@ -278,30 +302,33 @@ def check_samplesheet(file_in, file_out, use_control):
         make_dir(out_dir)
         with open(file_out, "w") as fout:
             fout.write(
-                ",".join(["id", "group", "replicate", "control", "single_end", "fastq_1", "fastq_2", "is_control"])
+                ",".join(
+                    ["id", "group", "condition", "replicate", "control", "single_end", "fastq_1", "fastq_2", "is_control"]
+                )
                 + "\n"
             )
-            for sample in sorted(sample_run_dict.keys()):
+            for sample_key in sorted(sample_run_dict.keys()):
+                sample, condition = sample_key
                 ## Check that replicate ids are in format 1..<NUM_REPS>
-                uniq_rep_ids = set(sample_run_dict[sample].keys())
+                uniq_rep_ids = set(sample_run_dict[sample_key].keys())
                 if len(uniq_rep_ids) != max(uniq_rep_ids):
                     print_error(
                         "Replicate ids must start with 1!",
                         "Group",
-                        sample,
+                        "{}_{}".format(sample, condition),
                     )
-                for replicate in sorted(sample_run_dict[sample].keys()):
+                for replicate in sorted(sample_run_dict[sample_key].keys()):
                     ## Check tech reps have same control group id
-                    check_group = sample_run_dict[sample][replicate][0][2]
-                    for tech_rep in sample_run_dict[sample][replicate]:
-                        if tech_rep[2] != check_group:
-                            tech_rep[2] = check_group
+                    check_group = sample_run_dict[sample_key][replicate][0][3]
+                    for tech_rep in sample_run_dict[sample_key][replicate]:
+                        if tech_rep[3] != check_group:
+                            tech_rep[3] = check_group
                             # print_error("Control group must match within technical replicates", tech_rep[2])
 
                     ## Write to file
-                    for idx, sample_info in enumerate(sample_run_dict[sample][replicate]):
-                        sample_id = "{}_R{}_T{}".format(sample, replicate, idx + 1)
-                        fout.write(",".join([sample_id] + sample_info) + "\n")
+                    for idx, sample_info in enumerate(sample_run_dict[sample_key][replicate]):
+                        sample_id = "{}_{}_rep{}_T{}".format(sample_info[0], sample_info[1], replicate, idx + 1)
+                        fout.write(",".join([sample_id] + sample_info[:7] + [sample_info[-1]]) + "\n")
 
 
 def main(args=None):

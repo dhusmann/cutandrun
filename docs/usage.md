@@ -14,25 +14,30 @@ You will need to create a samplesheet file with information about the samples in
 --input <path to samplesheet file>
 ```
 
-An example sample sheet structure is shown below. This defines two target experimental groups for the histone marks h3k27me3 and h3k4me3 with two biological replicates per group. Each antibody target also has an IgG control. The two IgG experiments are configured as biological replicates in the same group named `igg_ctrl`. They are assigned as controls to the two other groups using the last `control` column. If there are an equal number of replicates assigned to the samples from the control group as is the case below, the IgG controls will automatically be assigned to the same replicate number. If there is a mismatch then the first replicate of the control group will be assigned to all.
+An example sample sheet structure is shown below. This defines two target experimental groups for the histone marks h3k27me3 and h3k4me3 across two conditions (Control/Treatment) with two biological replicates per condition. Each antibody target also has an IgG control per condition. The IgG controls are assigned to the target samples using the `control` column. If there are an equal number of replicates assigned to the samples from the control group as is the case below, the IgG controls will automatically be assigned to the same replicate number. If there is a mismatch then the first replicate of the control group will be assigned to all.
 
 ```bash
-group,replicate,fastq_1,fastq_2,control
-h3k27me3,1,READ1_FASTQ.gz,READ2_FASTQ.gz,igg_ctrl
-h3k27me3,2,READ1_FASTQ.gz,READ2_FASTQ.gz,igg_ctrl
-h3k4me3,1,READ1_FASTQ.gz,READ2_FASTQ.gz,igg_ctrl
-h3k4me3,2,READ1_FASTQ.gz,READ2_FASTQ.gz,igg_ctrl
-igg_ctrl,1,READ1_FASTQ.gz,READ2_FASTQ.gz,
-igg_ctrl,2,READ1_FASTQ.gz,READ2_FASTQ.gz,
+group,condition,replicate,fastq_1,fastq_2,control
+h3k27me3,Control,1,READ1_FASTQ.gz,READ2_FASTQ.gz,igg_ctrl
+h3k27me3,Control,2,READ1_FASTQ.gz,READ2_FASTQ.gz,igg_ctrl
+h3k27me3,Treatment,1,READ1_FASTQ.gz,READ2_FASTQ.gz,igg_ctrl
+h3k4me3,Control,1,READ1_FASTQ.gz,READ2_FASTQ.gz,igg_ctrl
+h3k4me3,Treatment,1,READ1_FASTQ.gz,READ2_FASTQ.gz,igg_ctrl
+igg_ctrl,Control,1,READ1_FASTQ.gz,READ2_FASTQ.gz,
+igg_ctrl,Control,2,READ1_FASTQ.gz,READ2_FASTQ.gz,
+igg_ctrl,Treatment,1,READ1_FASTQ.gz,READ2_FASTQ.gz,
 ```
 
 | Column      | Description                                                                                                 |
 | ----------- | ----------------------------------------------------------------------------------------------------------- |
 | `group`     | Group identifier for sample. This will be identical for replicate samples from the same experimental group. |
+| `condition` | Biological condition label (e.g. Control, Treatment, WT, KO).                                               |
 | `replicate` | Integer representing replicate number.                                                                      |
 | `fastq_1`   | Full path to FastQ file for read 1. File has to be zipped and have the extension ".fastq.gz" or ".fq.gz".   |
 | `fastq_2`   | Full path to FastQ file for read 2. File has to be zipped and have the extension ".fastq.gz" or ".fq.gz".   |
 | `control`   | String representing the control group in the `group` column to which this replicate is assigned to.         |
+
+Legacy samplesheets without a `condition` column are still accepted; the pipeline will set `condition=NA` for all rows.
 
 An [example samplesheet](../assets/samplesheet.csv) has been provided with the pipeline.
 
@@ -148,13 +153,19 @@ For these reasons we provide several other modes of normalisation based on read 
 
 Normalisation mode can be changed by the parameter `--normalisation_mode`.
 
+Spike-in scaling can be scoped using `--normalisation_scope` with values `all`, `group`, or `group_condition` (the default is `all`). This controls how spike-in scale factors are computed across samples. For control scaling when using read-count normalisation modes, use `--igg_scale_scope` (`legacy`, `group_condition`, or `sample`) in addition to `--igg_scale_factor`.
+
 ### Peak Calling
 
-This pipeline currently provides peak calling via `SEACR` or `MACS2` using the `peakcaller` parameter. If control samples are provided in the sample sheet by default they will be used to normalise the called peaks against non-specific background noise. Control normalisation can be disabled using `--use_control`. Additionally it may be necessary to scale control samples being used as background, especially when read count normalisation methods have been used at earlier stages in the pipeline. To scale the control samples before peak calling, change the `--igg_scale_factor` parameter to a number between 0-1. Multiple peak callers can be run by using comma separated values e.g. `--peakcaller SEACR,MACS2`, in this mode the primary peak caller is the first in the list and will be used for downstream processing; any additional peak callers will simply output to the results directory.
+Peak calling supports `SEACR`, `MACS2` (legacy), `MACS2_NARROW`, `MACS2_BROAD`, `GOPEAKS_NARROW`, `GOPEAKS_BROAD`, `EPIC2_200BP`, `EPIC2_150BP`, `EPIC2_25BP`, `SPAN_DEFAULT`, and `SPAN_STRINGENT` via the `--peakcaller` parameter (comma-separated, case-insensitive). The first caller in the list is the primary caller used downstream; any additional callers are output-only. If `--peakcaller` is not set, `--peakcaller_preset` selects a preset (`standard` = SEACR; `extended` = all new callers).
+
+If control samples are provided in the sample sheet, they will be used to normalise called peaks against non-specific background noise. Control normalisation can be disabled using `--use_control`. Additionally it may be necessary to scale control samples being used as background, especially when read count normalisation methods have been used at earlier stages in the pipeline. To scale control samples before peak calling, change the `--igg_scale_factor` parameter to a number between 0-1 (or use `--igg_scale_scope` for group/condition-aware scaling).
+
+`EPIC2_*` and `SPAN_*` callers require controls; SPAN also requires `--omnipeaks_jar`. If `--epic2_genome` is not set, it will be inferred from `--genome` when possible. The legacy `macs2` caller uses `--macs2_narrow_peak` to switch between narrow and broad peaks.
 
 ### Consensus Peaks
 
-After peak calling, consensus peaks will be calculated based on merging peaks within the same groups. The number of replicates required for a valid peak can be changed using `replicate_threshold`. In some situations a user may which to call consensus peaks based on all samples, this can be configured by changing the `consensus_peak_mode` parameter from `group` to `all`.
+After peak calling, consensus peaks are calculated by merging peaks within the same grouping key. Use `--consensus_grouping` to choose `group` or `group_condition`. By default, if the samplesheet includes a `condition` column, grouping uses `group_condition`; otherwise it falls back to `group`. The number of replicates required for a valid peak can be changed using `replicate_threshold`. To call consensus peaks across all samples, set `--consensus_peak_mode all`.
 
 ### Reproducibility
 

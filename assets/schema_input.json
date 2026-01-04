@@ -12,6 +12,11 @@
                 "pattern": "^\\S+$",
                 "errorMessage": "Sample group must be provided and cannot contain spaces"
             },
+            "condition": {
+                "type": "string",
+                "pattern": "^\\S*$",
+                "errorMessage": "Condition label cannot contain spaces"
+            },
             "replicate": {
                 "type": "integer",
                 "pattern": "^[0-9]*$",

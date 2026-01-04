@@ -155,6 +155,7 @@ jobs:
           - test_samplesheet
           - test_samplesheet_2
           - test_samplesheet_3
+          - test_samplesheet_condition
           - test_filtering_noqfilter
           - test_filtering_withqfilter
           - test_bam_scale_none
@@ -170,6 +171,9 @@ jobs:
           - test_peak_callers_macs2_seacr
           - test_peak_callers_seacr_macs2_noigg
           - test_peak_callers_ctrl_tests
+          - test_peak_callers_gopeaks
+          - test_peak_callers_epic2
+          - test_peak_callers_preset_extended
           - test_consensus_peaks_group
           - test_consensus_peaks_all
           - test_consensus_peaks_invalid

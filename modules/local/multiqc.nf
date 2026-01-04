@@ -25,6 +25,7 @@ process MULTIQC {
     path ('deeptools/*')
     path ('deeptools/*')
     path ('deeptools/*')
+    path ('gopeaks/*')
     path ('peak_metrics/peak_count/*')
     path ('peak_metrics/peak_frip/*')
     path ('peak_metrics/peak_count_consensus/*')

@@ -10,9 +10,9 @@
     - verify_output_reporting_skip_preseq
     - verify_output_reporting_skip_preseq_true
   files:
-    - path: results/04_reporting/preseq/h3k4me3_R1.command.log
+    - path: results/04_reporting/preseq/h3k4me3_NA_rep1_T1.command.log
       should_exist: false
-    - path: results/04_reporting/preseq/h3k4me3_R2.command.log
+    - path: results/04_reporting/preseq/h3k4me3_NA_rep2_T1.command.log
       should_exist: false
-    - path: results/04_reporting/preseq/igg_ctrl_R1.command.log
+    - path: results/04_reporting/preseq/igg_ctrl_NA_rep1_T1.command.log
       should_exist: false

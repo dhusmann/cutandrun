@@ -344,14 +344,25 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             ch_span_records_file = RECORDS_TO_TSV_SPAN.out.tsv
                 .map { group, caller, records_file -> [group, records_file] }
 
+            def span_caller_priority = (params.callers ?: [])
+                .collect { it.toString().toLowerCase() }
+                .findAll { it.startsWith('span') || it.startsWith('omnipeak') }
+
             ch_span_peaks = ch_peaks_rows
                 .filter { row ->
                     def caller = row.caller?.toString()?.toLowerCase()
                     caller && (caller.startsWith('span') || caller.startsWith('omnipeak'))
                 }
-                .map { row -> [row.group, row.peaks_path] }
+                .map { row -> [row.group, row.caller?.toString()?.toLowerCase(), row.peaks_path] }
                 .groupTuple(by: [0])
-                .map { group, peaks -> [group, peaks[0]] }
+                .map { group, entries ->
+                    def peaks_by_caller = entries.groupBy { it[1] }
+                    def chosen = span_caller_priority.find { peaks_by_caller.containsKey(it) } ?: peaks_by_caller.keySet().sort()[0]
+                    if (peaks_by_caller.size() > 1) {
+                        log.warn "Multiple SPAN callers for group ${group}; using '${chosen}' for differential peaks."
+                    }
+                    [group, peaks_by_caller[chosen][0][2]]
+                }
 
             ch_span_inputs = ch_span_records_file
                 .join(ch_span_peaks)

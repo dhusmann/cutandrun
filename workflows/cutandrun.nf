@@ -35,7 +35,8 @@ if(params.normalisation_mode == "Spikein") {
 }
 
 // Check mandatory parameters that cannot be checked in the groovy lib as we want a channel for them
-if (params.input) { ch_input = file(params.input) } else { exit 1, "Input samplesheet not specified!" }
+// NOTE: Input validation is handled in WorkflowMain.initialise with entrypoint-aware gating.
+ch_input = params.input ? file(params.input) : null
 
 ch_blacklist = Channel.empty()
 if (params.blacklist) {

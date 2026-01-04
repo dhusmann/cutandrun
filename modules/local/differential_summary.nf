@@ -19,10 +19,11 @@ process DIFFERENTIAL_SUMMARY {
     task.ext.when == null || task.ext.when
 
     script:
+    def summaries_arg = summary_files instanceof List ? summary_files.join(' ') : summary_files
     """
     differential_summary.py \
         --design ${design_manifest} \
-        --summaries ${summary_files} \
+        --summaries ${summaries_arg} \
         --out differential_summary.tsv
 
     cat ${summary_header} differential_summary.tsv > differential_summary_mqc.tsv

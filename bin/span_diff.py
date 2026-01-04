@@ -21,6 +21,8 @@ def detect_native_support(jar_path, java_heap):
             check=False,
         )
         output = (result.stdout or "") + (result.stderr or "")
+    except FileNotFoundError:
+        return False, "java_missing"
     except Exception:
         return False, "help_failed"
     if "compare" in output.lower():
@@ -65,15 +67,25 @@ def main():
 
     native_supported, signature = detect_native_support(args.jar, args.java_heap)
     chosen_mode = "fallback"
+    status = "RUN"
+    reason = "ok"
     if args.mode == "native":
         if not native_supported:
-            print("ERROR: SPAN jar does not support native compare.", file=sys.stderr)
-            sys.exit(1)
-        chosen_mode = "native"
+            if signature == "java_missing":
+                print("WARNING: Java not found; falling back to SPAN fallback mode.", file=sys.stderr)
+                chosen_mode = "fallback"
+                reason = "java_missing_fallback"
+            else:
+                print("ERROR: SPAN jar does not support native compare.", file=sys.stderr)
+                sys.exit(1)
+        else:
+            chosen_mode = "native"
     elif args.mode == "fallback":
         chosen_mode = "fallback"
     else:
         chosen_mode = "native" if native_supported else "fallback"
+        if not native_supported and signature == "java_missing":
+            reason = "java_missing_fallback"
 
     if not os.path.exists(args.peaks):
         print("ERROR: SPAN peaks file not found for fallback.", file=sys.stderr)
@@ -103,7 +115,7 @@ def main():
 
     with open(summary_path, "w") as handle:
         handle.write("group\ttreated\tcontrol\tn_tested\tn_fdr_pass\tn_up\tn_down\tmode\tstatus\treason\n")
-        handle.write(f"{args.group}\t{treated}\t{control}\t{len(regions)}\t0\t0\t0\t{chosen_mode}\tRUN\tok\n")
+        handle.write(f"{args.group}\t{treated}\t{control}\t{len(regions)}\t0\t0\t0\t{chosen_mode}\t{status}\t{reason}\n")
 
     with open(mode_path, "w") as handle:
         handle.write(f"{chosen_mode}:{signature}\n")

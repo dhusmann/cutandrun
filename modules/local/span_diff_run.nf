@@ -1,7 +1,7 @@
 process SPAN_DIFF_RUN {
     label 'process_span'
 
-    conda "conda-forge::python=3.8.3" 
+    conda "conda-forge::python=3.8.3 conda-forge::openjdk"
     container "quay.io/biocontainers/python:3.8.3"
 
     input:

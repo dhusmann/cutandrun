@@ -326,16 +326,20 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                     spikein_scale_factor: row.spikein_scale_factor ?: 'NA'
                 ]
             }
-            [rec.group, JsonOutput.toJson(samples)]
+            def bams = ordered.collect { row -> row.bam }
+            def bais = ordered.collect { row -> row.bai }
+            [rec.group, JsonOutput.toJson(samples), bams, bais]
         }
 
         ch_chipbinner_inputs = CHIPBINNER_BINS.out.bins.join(ch_chipbinner_samples)
-            .map { group, bins_file, samples_json -> [bins_file, samples_json, group] }
+            .map { group, bins_file, samples_json, bams, bais -> [bins_file, samples_json, bams, bais, group] }
 
         CHIPBINNER_COUNTS(
-            ch_chipbinner_inputs.map { bins, samples_json, group -> bins },
-            ch_chipbinner_inputs.map { bins, samples_json, group -> samples_json },
-            ch_chipbinner_inputs.map { bins, samples_json, group -> group },
+            ch_chipbinner_inputs.map { bins, samples_json, bams, bais, group -> bins },
+            ch_chipbinner_inputs.map { bins, samples_json, bams, bais, group -> samples_json },
+            ch_chipbinner_inputs.map { bins, samples_json, bams, bais, group -> bams },
+            ch_chipbinner_inputs.map { bins, samples_json, bams, bais, group -> bais },
+            ch_chipbinner_inputs.map { bins, samples_json, bams, bais, group -> group },
             ch_use_spikein,
             Channel.value(params.chipbinner_pseudocount)
         )
@@ -343,7 +347,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
 
         CHIPBINNER_HDBSCAN_GRID(
             CHIPBINNER_COUNTS.out.normalized,
-            ch_chipbinner_inputs.map { bins, samples_json, group -> group },
+            ch_chipbinner_inputs.map { bins, samples_json, bams, bais, group -> group },
             Channel.value(params.chipbinner_hdbscan_grid_min_cluster_size),
             Channel.value(params.chipbinner_hdbscan_grid_min_samples)
         )
@@ -352,10 +356,10 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         CHIPBINNER_ROTS(
             CHIPBINNER_COUNTS.out.normalized,
             CHIPBINNER_HDBSCAN_GRID.out.clusters,
-            ch_chipbinner_inputs.map { bins, samples_json, group -> samples_json },
+            ch_chipbinner_inputs.map { bins, samples_json, bams, bais, group -> samples_json },
             Channel.value(treated),
             Channel.value(control),
-            ch_chipbinner_inputs.map { bins, samples_json, group -> group },
+            ch_chipbinner_inputs.map { bins, samples_json, bams, bais, group -> group },
             Channel.value(params.chipbinner_fdr),
             Channel.value(params.chipbinner_lfc),
             Channel.value(params.chipbinner_bootstrap),

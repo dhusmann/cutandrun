@@ -16,6 +16,8 @@ process CHIPBINNER_COUNTS {
     input:
     path bins
     val samples_json
+    path bams
+    path bais
     val group
     val use_spikein
     val pseudocount
@@ -30,6 +32,8 @@ process CHIPBINNER_COUNTS {
 
     script:
     """\
+    printf "%s\n" ${bams} > bam_paths.txt
+
     python - <<'PY'
     import json
     import subprocess
@@ -37,9 +41,13 @@ process CHIPBINNER_COUNTS {
     from pathlib import Path
 
     samples = json.loads(r'''${samples_json}''')
-    bam_paths = [s['bam'] for s in samples]
+    with open('bam_paths.txt') as handle:
+        bam_paths = [line.strip() for line in handle if line.strip()]
     sample_ids = [s['sample_id'] for s in samples]
     scale_factors = [s.get('spikein_scale_factor') for s in samples]
+    if len(bam_paths) != len(sample_ids):
+        sys.stderr.write(f\"Expected {len(sample_ids)} BAMs but found {len(bam_paths)}\\n\")
+        sys.exit(1)
 
     cmd = ["bedtools", "multicov", "-bams"] + bam_paths + ["-bed", "${bins}"]
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)

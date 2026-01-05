@@ -207,7 +207,7 @@ ChIPBinner options:
 
 SPAN differential options:
 
-- `--omnipeaks_jar` (required for SPAN differential)
+- `--omnipeaks_jar` (required for native SPAN differential; auto mode falls back if missing)
 - `--span_diff_mode` (auto|native|fallback), `--span_diff_fdr`, `--span_diff_gap`, `--span_diff_bin`
 - `--span_diff_java_heap`
 

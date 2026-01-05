@@ -181,7 +181,6 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         ch_design_rows = DIFFERENTIAL_DESIGN.out.design.splitCsv(header: true, sep: '\t')
 
         ch_gene_bed_single = ch_gene_bed.collect().map { it[0] }
-        ch_chrom_sizes_single = ch_chrom_sizes.collect().map { it[0] }
 
         def diff_use_spikein = params.differential_use_spikein ? params.differential_use_spikein.toString().toLowerCase() : 'auto'
         def use_spikein = (diff_use_spikein == 'true') || (diff_use_spikein == 'auto' && params.normalisation_mode == 'Spikein')
@@ -283,6 +282,8 @@ workflow DIFFERENTIAL_PEAK_CALLING {
 
             ch_chip_records_file = RECORDS_TO_TSV_CHIPBINNER.out.tsv
                 .map { group, caller, records_file -> [group, records_file] }
+
+            ch_chrom_sizes_single = ch_chrom_sizes.collect().map { it[0] }
 
             ch_chip_inputs = ch_chip_records_file
                 .combine(ch_chrom_sizes_single)

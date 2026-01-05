@@ -15,6 +15,7 @@ process CHIPBINNER_HDBSCAN_GRID {
 
     input:
     path matrix
+    val samples_json
     val group
     val min_cluster_size
     val min_samples
@@ -22,6 +23,8 @@ process CHIPBINNER_HDBSCAN_GRID {
     output:
     path "chipbinner.hdbscan_grid_summary.tsv", emit: grid_summary
     path "chipbinner.clusters.best.tsv"       , emit: clusters
+    path "chipbinner.clusters.2clusters.tsv"  , emit: clusters_2
+    path "chipbinner.clusters.3clusters.tsv"  , emit: clusters_3
     path "versions.yml"                       , emit: versions
 
     when:
@@ -29,12 +32,27 @@ process CHIPBINNER_HDBSCAN_GRID {
 
     script:
     """\
+    python - <<'PY'
+    import json
+    import csv
+
+    samples = json.loads(r'''${samples_json}''')
+    with open('chipbinner.samplesheet.csv', 'w', newline='') as handle:
+        writer = csv.writer(handle)
+        writer.writerow(['sample_id', 'condition'])
+        for row in samples:
+            writer.writerow([row['sample_id'], row['condition']])
+    PY
+
     python ${projectDir}/bin/hdbscan_grid.py \
         --matrix ${matrix} \
+        --samplesheet chipbinner.samplesheet.csv \
         --min_cluster_size ${min_cluster_size} \
         --min_samples ${min_samples} \
         --summary chipbinner.hdbscan_grid_summary.tsv \
-        --clusters chipbinner.clusters.best.tsv
+        --clusters_best chipbinner.clusters.best.tsv \
+        --clusters_2 chipbinner.clusters.2clusters.tsv \
+        --clusters_3 chipbinner.clusters.3clusters.tsv
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

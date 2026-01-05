@@ -663,11 +663,14 @@ workflow CUTANDRUN {
     }
 
     /*
-    * CHANNEL: Filter bais for target only
+    * CHANNEL: Filter bais for target/control
     */
     ch_samtools_bai.filter { it -> it[0].is_control == false }
     .set { ch_bai_target }
+    ch_samtools_bai.filter { it -> it[0].is_control == true }
+    .set { ch_bai_control }
     //ch_bai_target | view
+    //ch_bai_control | view
 
     /*
     * CHANNEL: Combine bam and bai files on id
@@ -679,12 +682,22 @@ workflow CUTANDRUN {
         // EXAMPLE CHANNEL STRUCT: [[META], BAM, BAI]
     //ch_bam_bai | view
 
+    /*
+    * CHANNEL: Combine control bam and bai files on id
+    */
+    ch_bam_control.map { row -> [row[0].id, row ].flatten()}
+    .join ( ch_bai_control.map { row -> [row[0].id, row ].flatten()} )
+    .map { row -> [row[1], row[2], row[4]] }
+    .set { ch_control_bam_bai }
+    //ch_control_bam_bai | view
+
     ch_differential_summary = Channel.empty()
     ch_differential_skipped = Channel.empty()
     ch_differential_versions = Channel.empty()
     if (params.run_peak_calling && (params.run_diffbind || params.run_chipbinner || params.run_span_diff)) {
         DIFFERENTIAL_PEAK_CALLING (
             ch_bam_bai,
+            ch_control_bam_bai,
             ch_peaks_all,
             ch_bigwig,
             ch_spikein_scale_factors,

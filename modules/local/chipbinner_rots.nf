@@ -23,6 +23,8 @@ process CHIPBINNER_ROTS {
     input:
     path matrix
     path clusters
+    path grid_summary
+    path norm_info
     val samples_json
     val treated
     val control
@@ -31,15 +33,20 @@ process CHIPBINNER_ROTS {
     val lfc
     val bootstrap
     val k_value
+    val lola_run
 
     output:
-    tuple val(group), path("chipbinner.differential.tsv")     , emit: results
-    tuple val(group), path("chipbinner.significant.bed")      , emit: significant
-    tuple val(group), path("chipbinner.significant_up.bed")   , emit: up
-    tuple val(group), path("chipbinner.significant_down.bed") , emit: down
-    tuple val(group), path("chipbinner.summary.tsv")          , emit: summary
-    tuple val(group), path("plots")                           , emit: plots
-    path "versions.yml"                                       , emit: versions
+    tuple val(group), path("chipbinner.differential.tsv")       , emit: results
+    tuple val(group), path("chipbinner.significant.bed")        , emit: significant
+    tuple val(group), path("chipbinner.significant_up.bed")     , emit: up
+    tuple val(group), path("chipbinner.significant_down.bed")   , emit: down
+    tuple val(group), path("chipbinner.control_enriched.bed")   , emit: control_enriched
+    tuple val(group), path("chipbinner.treated_enriched.bed")   , emit: treated_enriched
+    tuple val(group), path("chipbinner.stable.bed")             , emit: stable
+    tuple val(group), path("chipbinner.noise.bed")              , emit: noise
+    tuple val(group), path("chipbinner.summary.tsv")            , emit: summary
+    tuple val(group), path("plots")                             , emit: plots
+    path "versions.yml"                                         , emit: versions
 
     when:
     task.ext.when == null || task.ext.when
@@ -61,6 +68,8 @@ process CHIPBINNER_ROTS {
     Rscript ${projectDir}/bin/chipbinner_rots.R \
         --matrix ${matrix} \
         --clusters ${clusters} \
+        --grid_summary ${grid_summary} \
+        --norm_info ${norm_info} \
         --samplesheet chipbinner.samplesheet.csv \
         --treated ${treated} \
         --control ${control} \
@@ -68,7 +77,8 @@ process CHIPBINNER_ROTS {
         --fdr ${fdr} \
         --lfc ${lfc} \
         --bootstrap ${bootstrap} \
-        --k_value ${k_value}
+        --k_value ${k_value} \
+        --lola_run ${lola_run}
 
     cat chipbinner.significant_up.bed chipbinner.significant_down.bed | awk 'NF' | sort -k1,1 -k2,2n | uniq > chipbinner.significant.bed
 

@@ -45,12 +45,17 @@ process DIFFERENTIAL_SUMMARY_MERGE {
             for row in reader:
                 rows.append(row)
 
+    base_fields = [
+        'method','group','caller','treated_condition','control_condition','n_tested','n_fdr_pass','n_up','n_down','use_spikein','span_mode_used'
+    ]
     if rows:
-        fieldnames = list(rows[0].keys())
+        fieldnames = list(base_fields)
+        for row in rows:
+            for key in row.keys():
+                if key not in fieldnames:
+                    fieldnames.append(key)
     else:
-        fieldnames = [
-            'method','group','caller','treated_condition','control_condition','n_tested','n_fdr_pass','n_up','n_down'
-        ]
+        fieldnames = list(base_fields)
 
     with open('differential.summary.all_methods.tsv', 'w', newline='') as out_handle:
         if header_lines:

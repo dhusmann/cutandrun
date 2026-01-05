@@ -16,6 +16,8 @@ option_list <- list(
     make_option(c("--summits"), type = "integer", default = 0),
     make_option(c("--backend"), type = "character", default = "DESeq2"),
     make_option(c("--use_spikein"), type = "character", default = "false"),
+    make_option(c("--summary_method"), type = "character", default = "diffbind"),
+    make_option(c("--span_mode_used"), type = "character", default = "NA"),
     make_option(c("--prefix"), type = "character", default = "diffbind"),
     make_option(c("--extra_params"), type = "character", default = NULL)
 )
@@ -195,8 +197,9 @@ if (use_spikein) {
         n_fdr <- nrow(sig)
         n_up <- nrow(up)
         n_down <- nrow(down)
+        use_spikein_flag <- ifelse(use_spikein, "true", "false")
         summary <- data.frame(
-            method = "diffbind",
+            method = opt$summary_method,
             group = opt$group,
             caller = opt$caller,
             treated_condition = opt$treated,
@@ -204,7 +207,9 @@ if (use_spikein) {
             n_tested = n_tested,
             n_fdr_pass = n_fdr,
             n_up = n_up,
-            n_down = n_down
+            n_down = n_down,
+            use_spikein = use_spikein_flag,
+            span_mode_used = opt$span_mode_used
         )
         write.table(summary, paste0(opt$prefix, ".summary.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
 
@@ -301,8 +306,9 @@ if (!use_spikein) {
     n_fdr <- nrow(sig)
     n_up <- nrow(up)
     n_down <- nrow(down)
+    use_spikein_flag <- ifelse(use_spikein, "true", "false")
     summary <- data.frame(
-        method = "diffbind",
+        method = opt$summary_method,
         group = opt$group,
         caller = opt$caller,
         treated_condition = opt$treated,
@@ -310,7 +316,9 @@ if (!use_spikein) {
         n_tested = n_tested,
         n_fdr_pass = n_fdr,
         n_up = n_up,
-        n_down = n_down
+        n_down = n_down,
+        use_spikein = use_spikein_flag,
+        span_mode_used = opt$span_mode_used
     )
     write.table(summary, paste0(opt$prefix, ".summary.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
 

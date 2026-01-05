@@ -45,7 +45,10 @@ workflow DIFFERENTIAL_ONLY {
                 group: row.group,
                 condition: row.condition,
                 replicate: row.replicate.toInteger(),
-                is_control: false
+                control_group: row.control_group ?: row.group,
+                control_condition: row.control_condition ?: 'NA',
+                is_control: false,
+                normalisation_mode: row.normalisation_mode ?: params.normalisation_mode
             ]
             def bam = file(row.final_bam)
             def bai = file(row.final_bai)
@@ -60,6 +63,37 @@ workflow DIFFERENTIAL_ONLY {
     ch_bigwig = ch_samples
         .filter { meta, bam, bai, scale, bigwig -> bigwig && bigwig != 'NA' }
         .map { meta, bam, bai, scale, bigwig -> [meta, file(bigwig)] }
+
+    // Optional pooled controls (used for ChIPBinner input normalization)
+    def pooled_controls_dir = file("${run_dir}/03_peak_calling/01_pooled_controls")
+    ch_control_bam_bai = Channel.empty()
+    if (pooled_controls_dir.exists()) {
+        ch_control_bam_bai = Channel.fromPath("${pooled_controls_dir}/*.bam")
+            .map { bam ->
+                def base = bam.baseName
+                def parts = base.tokenize('_')
+                def condition = parts.size() > 1 ? parts[-1] : 'NA'
+                def group = parts.size() > 1 ? parts[0..-2].join('_') : base
+                def bai = file("${bam}.bai")
+                if (!bai.exists()) {
+                    bai = file("${bam.baseName}.bai")
+                }
+                if (!bai.exists()) {
+                    log.warn "Missing BAI for pooled control ${bam}"
+                    return null
+                }
+                def meta = [
+                    id: base,
+                    sample_id: base,
+                    group: group,
+                    condition: condition,
+                    replicate: 1,
+                    is_control: true
+                ]
+                [meta, bam, bai]
+            }
+            .filter { it != null }
+    }
 
     ch_samples_map = ch_samples
         .map { meta, bam, bai, scale, bigwig -> [meta.sample_id, meta] }
@@ -89,6 +123,7 @@ workflow DIFFERENTIAL_ONLY {
 
     DIFFERENTIAL_PEAK_CALLING(
         ch_bam_bai,
+        ch_control_bam_bai,
         ch_peaks,
         ch_bigwig,
         ch_spikein_scale,

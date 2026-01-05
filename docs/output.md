@@ -313,7 +313,7 @@ Computes the overall similarity between two or more samples based on read covera
 
 </details>
 
-These tables are generated when `--normalisation_mode Spikein` to record per-sample scale factors. When `--normalisation_scope` is `group` or `group_condition`, a separate TSV is written per scope.
+These tables are generated when `--normalisation_mode Spikein` to record per-sample scale factors. When `--normalisation_scope` is `group` or `group_condition`, a separate TSV is written per scope. If `--dump_scale_factors` is set, an additional debug file `normalisation_scope_reference.tsv` is written with the per-scope reference read counts used to compute scale factors.
 
 ### 6.2. <a name='PooledControls'></a>Pooled controls
 

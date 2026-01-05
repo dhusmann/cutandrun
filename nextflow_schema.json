@@ -73,7 +73,7 @@
                 },
                 "dump_scale_factors": {
                     "type": "boolean",
-                    "description": "Output calculated scale factors from pipeline"
+                    "description": "Emit additional debug outputs for spike-in normalisation (standard scale-factor TSVs are always written when normalisation_mode is Spikein)."
                 }
             }
         },

@@ -247,7 +247,7 @@ if (!use_spikein) {
     dba_obj <- do.call(dba.contrast, c(list(dba_obj), contrast_args))
     dba_obj <- do.call(dba.analyze, c(list(dba_obj), analyze_args))
 
-    res <- dba.report(dba_obj, th = opt$fdr, fold = opt$lfc)
+    res <- dba.report(dba_obj, th = 1, fold = 0)
     res_df <- as.data.frame(res)
 
     coord_cols <- list(chr = NULL, start = NULL, end = NULL)

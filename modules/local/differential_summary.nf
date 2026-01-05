@@ -12,7 +12,7 @@ process DIFFERENTIAL_SUMMARY_MERGE {
     container "quay.io/biocontainers/python:3.8.3"
 
     input:
-    path summary_files
+    path summary_files, stageAs: { file -> "summaries/${file.parent.name}-${file.name}" }
     val skipped_json
     path summary_header
     path skipped_header
@@ -27,13 +27,24 @@ process DIFFERENTIAL_SUMMARY_MERGE {
 
     script:
     """\
-    python - ${summary_files} <<'PY'
+    : > summary_files.list
+    for file in ${summary_files}; do
+        echo "\$file" >> summary_files.list
+    done
+
+    python - <<'PY'
     import csv
     import json
     import sys
     from pathlib import Path
 
-    summary_files = sorted(Path(p) for p in sys.argv[1:])
+    summary_files = []
+    with open('summary_files.list') as handle:
+        for line in handle:
+            line = line.strip()
+            if line:
+                summary_files.append(Path(line))
+    summary_files = sorted(summary_files)
 
     with open('${summary_header}', 'r') as header_handle:
         header_lines = header_handle.read().rstrip('\\n')

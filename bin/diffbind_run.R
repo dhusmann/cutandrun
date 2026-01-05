@@ -252,8 +252,22 @@ if (!use_spikein) {
     dba_obj <- do.call(dba.contrast, c(list(dba_obj), contrast_args))
     dba_obj <- do.call(dba.analyze, c(list(dba_obj), analyze_args))
 
-    res <- dba.report(dba_obj, th = 1, fold = 0)
-    res_df <- as.data.frame(res)
+    res <- tryCatch(dba.report(dba_obj, th = 1, fold = 0), error = function(e) NULL)
+    if (is.null(res)) {
+        res_df <- data.frame()
+    } else {
+        res_df <- as.data.frame(res)
+    }
+    if (nrow(res_df) == 0 && ncol(res_df) == 0) {
+        res_df <- data.frame(
+            chr = character(),
+            start = integer(),
+            end = integer(),
+            log2FC = numeric(),
+            FDR = numeric(),
+            stringsAsFactors = FALSE
+        )
+    }
 
     coord_cols <- list(chr = NULL, start = NULL, end = NULL)
     for (col in colnames(res_df)) {

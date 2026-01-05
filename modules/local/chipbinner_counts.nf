@@ -39,16 +39,21 @@ process CHIPBINNER_COUNTS {
     script:
     """\
     printf "%s\n" ${bams} > bam_paths.txt
+    printf "%s\n" ${bais} > bai_paths.txt
     printf "%s\n" ${control_bams} > control_bam_paths.txt
+    printf "%s\n" ${control_bais} > control_bai_paths.txt
 
     python - <<'PY'
     import json
     import subprocess
     import sys
+    from pathlib import Path
 
     samples = json.loads(r'''${samples_json}''')
     with open('bam_paths.txt') as handle:
         bam_paths = [line.strip() for line in handle if line.strip()]
+    with open('bai_paths.txt') as handle:
+        bai_paths = [line.strip() for line in handle if line.strip()]
     sample_ids = [s['sample_id'] for s in samples]
     scale_factors = [s.get('spikein_scale_factor') for s in samples]
     ms_coeffs_path = r'''${ms_coeffs}'''
@@ -59,6 +64,24 @@ process CHIPBINNER_COUNTS {
     if len(bam_paths) != len(sample_ids):
         sys.stderr.write(f"Expected {len(sample_ids)} BAMs but found {len(bam_paths)}\\n")
         sys.exit(1)
+
+    def ensure_bai_for_bams(bams, bais, label):
+        missing = []
+        for bam in bams:
+            bam_path = Path(bam)
+            candidates = [
+                Path(f"{bam}.bai"),
+                bam_path.with_suffix(".bai"),
+            ]
+            if any(candidate.exists() for candidate in candidates):
+                continue
+            missing.append(str(bam_path))
+        if missing:
+            sys.stderr.write(f"Missing BAM index for {label}: {', '.join(missing)}\\n")
+            sys.stderr.write(f"Available BAI files: {', '.join(bais) if bais else 'none'}\\n")
+            sys.exit(1)
+
+    ensure_bai_for_bams(bam_paths, bai_paths, "chipbinner samples")
 
     cmd = ["bedtools", "multicov", "-bams"] + bam_paths + ["-bed", "${bins}"]
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -185,6 +208,9 @@ process CHIPBINNER_COUNTS {
     if use_input and control_conditions:
         with open('control_bam_paths.txt') as handle:
             control_bam_paths = [line.strip() for line in handle if line.strip()]
+        with open('control_bai_paths.txt') as handle:
+            control_bai_paths = [line.strip() for line in handle if line.strip()]
+        ensure_bai_for_bams(control_bam_paths, control_bai_paths, "chipbinner controls")
         if len(control_bam_paths) != len(control_conditions):
             sys.stderr.write("Control BAMs and conditions mismatch\\n")
             sys.exit(1)

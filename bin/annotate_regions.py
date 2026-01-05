@@ -107,11 +107,15 @@ def main():
         return
 
     features_has_name = False
+    feature_name_idx = None
     with features_bed.open() as handle:
         for line in handle:
             if not line.strip() or line.startswith("#"):
                 continue
-            features_has_name = len(line.rstrip().split("\t")) >= 4
+            features_cols = len(line.rstrip().split("\t"))
+            features_has_name = features_cols >= 4
+            if features_has_name:
+                feature_name_idx = 4 + 3
             break
 
     regions_bed = Path("regions.bed")
@@ -138,8 +142,8 @@ def main():
                 continue
             row_id = int(fields[3])
             feature_id = "NA"
-            if features_has_name and len(fields) > 7:
-                feature_id = fields[7]
+            if feature_name_idx is not None and len(fields) > feature_name_idx:
+                feature_id = fields[feature_name_idx]
             distance = fields[-1]
             annotations[row_id] = (feature_id, distance)
 

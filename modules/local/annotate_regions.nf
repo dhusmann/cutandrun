@@ -8,7 +8,7 @@ process ANNOTATE_REGIONS {
         saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
     ] : null }
 
-    conda "bioconda::bedtools=2.31.1 conda-forge::python=3.11 conda-forge::perl=5.26.2"
+    conda "bioconda::bedtools=2.31.1 bioconda::bedops=2.4.41 conda-forge::python=3.11 conda-forge::perl=5.26.2"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://depot.galaxyproject.org/singularity/bedtools:2.31.1--hf5e1c6e_0' :
         'biocontainers/bedtools:2.31.1--hf5e1c6e_0' }"

@@ -27,7 +27,7 @@
     - path: results/03_peak_calling/08_differential/multiqc/differential_summary_mqc.tsv
       contains:
         - "manifest_only"
-        - "SKIPPED"
+        - "SKIP"
       must_not_contain:
         - "RUN\tok"
     - path: results/03_peak_calling/08_differential/multiqc/differential_design_mqc.tsv

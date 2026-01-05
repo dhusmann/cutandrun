@@ -651,6 +651,7 @@
                     "type": "integer",
                     "default": 10000,
                     "fa_icon": "fas fa-align-justify",
+                    "enum": [1000, 5000, 10000, 25000],
                     "description": "Bin size for ChIPBinner (1000, 5000, 10000, 25000)."
                 },
                 "chipbinner_windows_dir": {

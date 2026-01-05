@@ -238,7 +238,7 @@ def compute_counts(windows_path, samples, out_path, use_input=False):
 
 
 def write_matrix(counts_df, sample_ids, out_path):
-    matrix = counts_df[["bin_id"] + sample_ids]
+    matrix = counts_df[["chrom", "start", "end", "bin_id"] + sample_ids]
     matrix.to_csv(out_path, sep="\t", index=False)
 
 

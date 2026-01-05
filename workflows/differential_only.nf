@@ -5,6 +5,74 @@
 include { DIFFERENTIAL_PEAK_CALLING } from "../subworkflows/local/differential_peak_calling"
 include { CUSTOM_GETCHROMSIZES } from "../modules/nf-core/custom/getchromsizes/main"
 
+import java.security.MessageDigest
+
+def hashFile(path) {
+    if (!path) {
+        return "none"
+    }
+    def f = file(path)
+    if (!f.exists()) {
+        return "none"
+    }
+    def digest = MessageDigest.getInstance("SHA-256")
+    f.withInputStream { input ->
+        byte[] buffer = new byte[8192]
+        int read
+        while ((read = input.read(buffer)) > 0) {
+            digest.update(buffer, 0, read)
+        }
+    }
+    return digest.digest().encodeHex().toString().substring(0, 12)
+}
+
+def resolveCachedWindowsPath(windowsDir, binSize, genomeId, blacklistPath) {
+    if (!windowsDir) {
+        return null
+    }
+    def winPath = file(windowsDir)
+    if (winPath.exists() && winPath.isFile()) {
+        return winPath.toString()
+    }
+    if (!winPath.exists() || !winPath.isDirectory()) {
+        return null
+    }
+    def blacklistHash = hashFile(blacklistPath)
+    def meta = file("${windowsDir}/chipbinner_windows_meta.tsv")
+    if (meta.exists()) {
+        def lines = meta.text.readLines()
+        if (lines.size() > 1) {
+            def header = lines[0].split("\t")
+            def values = lines[1].split("\t", -1)
+            def metaRow = [:]
+            header.eachWithIndex { col, idx ->
+                metaRow[col] = idx < values.size() ? values[idx] : ""
+            }
+            if (metaRow["bin_size"] == binSize.toString() && metaRow["blacklist_hash"] == blacklistHash) {
+                def candidate = file("${windowsDir}/${metaRow['windows_path']}")
+                if (candidate.exists()) {
+                    return candidate.toString()
+                }
+            }
+        }
+    }
+    def preferred = []
+    if (genomeId) {
+        preferred << "windows.${genomeId}.${binSize}.${blacklistHash}.bed"
+        preferred << "windows.${genomeId}.${binSize}.bed"
+    } else {
+        preferred << "windows.${binSize}.${blacklistHash}.bed"
+        preferred << "windows.${binSize}.bed"
+    }
+    for (name in preferred) {
+        def candidate = file("${windowsDir}/${name}")
+        if (candidate.exists()) {
+            return candidate.toString()
+        }
+    }
+    return null
+}
+
 workflow DIFFERENTIAL_ONLY {
 
     if (!params.differential_from_run) {
@@ -46,15 +114,35 @@ workflow DIFFERENTIAL_ONLY {
         ch_gtf = Channel.from( file(params.gtf) )
     }
 
+    def cached_windows = resolveCachedWindowsPath(
+        params.chipbinner_windows_dir,
+        params.chipbinner_bin_size,
+        params.genome,
+        params.blacklist
+    )
+    def use_cached_windows = cached_windows != null
+    if (use_cached_windows) {
+        params.chipbinner_windows_dir = cached_windows
+    }
+
     ch_chrom_sizes = Channel.empty()
-    def need_chrom_sizes = params.run_chipbinner || (params.run_span_diff && params.span_diff_mode != 'fallback')
-    if (need_chrom_sizes) {
+    def need_real_chrom_sizes = (params.run_span_diff && params.span_diff_mode != 'fallback') || (params.run_chipbinner && !use_cached_windows)
+    if (need_real_chrom_sizes) {
         if (!params.fasta) {
-            exit 1, "--fasta is required to compute chrom sizes for differential-only mode when running ChIPBinner or SPAN native/auto."
+            def reasons = []
+            if (params.run_chipbinner && !use_cached_windows) {
+                reasons << "cached ChIPBinner windows not found"
+            }
+            if (params.run_span_diff && params.span_diff_mode != 'fallback') {
+                reasons << "SPAN native/auto requires chrom sizes"
+            }
+            exit 1, "--fasta is required for differential-only mode (${reasons.join('; ')})"
         }
         ch_fasta = Channel.of([ [id: 'genome'], file(params.fasta) ])
         CUSTOM_GETCHROMSIZES ( ch_fasta )
         ch_chrom_sizes = CUSTOM_GETCHROMSIZES.out.sizes.map { it[1] }
+    } else if (params.run_chipbinner || params.run_span_diff) {
+        ch_chrom_sizes = Channel.fromPath("${projectDir}/assets/chrom_sizes_stub.sizes", checkIfExists: true)
     }
 
     DIFFERENTIAL_PEAK_CALLING (

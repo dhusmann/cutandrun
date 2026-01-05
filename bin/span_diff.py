@@ -332,7 +332,16 @@ def filter_bed_by_stats(rows: List[Dict[str, str]], fdr_cutoff: float, direction
     return out
 
 
-def write_failure_outputs(outdir: str, group: str, treated: str, control: str, mode: str, signature: str, reason: str) -> None:
+def write_failure_outputs(
+    outdir: str,
+    group: str,
+    treated: str,
+    control: str,
+    mode: str,
+    signature: str,
+    reason: str,
+    allow_partial: bool,
+) -> None:
     diff_path = os.path.join(outdir, "span.differential.tsv")
     bed_path = os.path.join(outdir, "span.differential.peaks.bed")
     up_path = os.path.join(outdir, "span.up.bed")
@@ -345,7 +354,8 @@ def write_failure_outputs(outdir: str, group: str, treated: str, control: str, m
     open(bed_path, "w").close()
     open(up_path, "w").close()
     open(down_path, "w").close()
-    write_summary(summary_path, group, treated, control, 0, 0, 0, 0, mode, "FAIL", reason)
+    status = "SKIP" if allow_partial else "FAIL"
+    write_summary(summary_path, group, treated, control, 0, 0, 0, 0, mode, status, reason)
     write_mode(mode_path, mode, signature)
 
 
@@ -354,6 +364,8 @@ def compute_orientation_log2fc(
     treated_bams: List[str],
     control_bams: List[str],
     pseudocount: float,
+    treated_size_factors: List[float] = None,
+    control_size_factors: List[float] = None,
 ) -> Dict[Tuple[str, str, str], List[float]]:
     if not treated_bams or not control_bams:
         raise RuntimeError("orientation_missing_bams")
@@ -361,6 +373,17 @@ def compute_orientation_log2fc(
     result = run_cmd(cmd, check=False)
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip() or "bedtools_multicov_failed")
+
+    def apply_size_factors(counts: List[float], factors: List[float]) -> List[float]:
+        if not factors or len(factors) != len(counts):
+            return counts
+        adjusted = []
+        for count, factor in zip(counts, factors):
+            if factor is None or factor == 0:
+                factor = 1.0
+            adjusted.append(count / factor)
+        return adjusted
+
     orientation = {}
     for line in result.stdout.strip().split("\n"):
         if not line:
@@ -372,6 +395,8 @@ def compute_orientation_log2fc(
         counts = [safe_float(val) or 0.0 for val in parts[3:]]
         t_counts = counts[: len(treated_bams)]
         c_counts = counts[len(treated_bams) :]
+        t_counts = apply_size_factors(t_counts, treated_size_factors)
+        c_counts = apply_size_factors(c_counts, control_size_factors)
         if not t_counts or not c_counts:
             continue
         t_mean = sum(t_counts) / len(t_counts)
@@ -379,6 +404,54 @@ def compute_orientation_log2fc(
         log2fc = math.log2((t_mean + pseudocount) / (c_mean + pseudocount))
         orientation.setdefault(key, []).append(log2fc)
     return orientation
+
+
+def compute_spikein_factors(samples: List[Dict[str, str]], use_spikein: bool):
+    scale_values = []
+    size_factors = []
+    numeric_present = False
+    for row in samples:
+        raw = row.get("spikein_scale_factor", "NA")
+        scale_values.append(raw)
+        numeric = None
+        try:
+            numeric = float(raw)
+            numeric_present = True
+        except Exception:
+            numeric = None
+
+        if use_spikein:
+            if numeric is None or numeric == 0:
+                size = 1.0
+            else:
+                size = 1.0 / numeric
+        else:
+            size = None
+        size_factors.append(size)
+
+    use_spikein_factors = use_spikein and numeric_present
+    return scale_values, size_factors, use_spikein_factors
+
+
+def write_normalization_factors(
+    path: str,
+    samples: List[Dict[str, str]],
+    scale_values: List[str],
+    size_factors: List[float],
+    use_spikein_factors: bool,
+    backend: str,
+) -> None:
+    with open(path, "w") as handle:
+        handle.write("sample_id\tgroup\tcondition\tspikein_scale_factor\tspikein_size_factor\tused_by_backend\n")
+        for row, scale_val, size_val in zip(samples, scale_values, size_factors):
+            used_by_backend = "spikein" if use_spikein_factors else backend
+            size_str = "NA"
+            if use_spikein_factors:
+                size = size_val if size_val is not None else 1.0
+                size_str = f"{size:.6f}"
+            handle.write(
+                f"{row.get('sample_id','')}\t{row.get('group','')}\t{row.get('condition','')}\t{scale_val}\t{size_str}\t{used_by_backend}\n"
+            )
 
 
 def main():
@@ -418,7 +491,7 @@ def main():
     if args.mode == "native":
         if not native_supported:
             reason = "native_not_supported"
-            write_failure_outputs(args.outdir, args.group, treated, control, "native", signature, reason)
+            write_failure_outputs(args.outdir, args.group, treated, control, "native", signature, reason, allow_partial)
             if allow_partial:
                 sys.exit(0)
             print("ERROR: SPAN jar does not support native compare.", file=sys.stderr)
@@ -435,7 +508,7 @@ def main():
     samples_group = [row for row in samples if row.get("group") == args.group and row.get("condition") in {treated, control}]
     if not samples_group:
         reason = "no_samples"
-        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason)
+        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
         if allow_partial:
             sys.exit(0)
         print("ERROR: No samples found for group.", file=sys.stderr)
@@ -445,7 +518,7 @@ def main():
     span_peaks = [row for row in peaks_group if is_span_caller(row.get("caller"))]
     if not span_peaks:
         reason = "no_span_peaks"
-        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason)
+        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
         if allow_partial:
             sys.exit(0)
         print("ERROR: No SPAN/OmniPeak peaks found for group.", file=sys.stderr)
@@ -477,7 +550,7 @@ def main():
     missing_peaks = [row.get("sample_id") for row in samples_group if row.get("sample_id") not in peaks_by_sample]
     if missing_peaks:
         reason = "missing_peaks"
-        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason)
+        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
         if allow_partial:
             sys.exit(0)
         print(f"ERROR: Missing peaks for samples: {','.join(missing_peaks)}", file=sys.stderr)
@@ -488,11 +561,18 @@ def main():
     control_samples = [row for row in samples_sorted if row.get("condition") == control]
     if not treated_samples or not control_samples:
         reason = "missing_condition"
-        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason)
+        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
         if allow_partial:
             sys.exit(0)
         print("ERROR: Missing treated/control samples.", file=sys.stderr)
         sys.exit(1)
+
+    spikein_scale_values, spikein_size_factors, use_spikein_factors = compute_spikein_factors(samples_sorted, use_spikein)
+    bam_size_factors = {}
+    for row, size_factor in zip(samples_sorted, spikein_size_factors):
+        bam = row.get("final_bam")
+        if bam:
+            bam_size_factors[bam] = size_factor if size_factor is not None else 1.0
 
     diff_path = os.path.join(args.outdir, "span.differential.tsv")
     bed_path = os.path.join(args.outdir, "span.differential.peaks.bed")
@@ -524,7 +604,7 @@ def main():
         if chosen_mode == "native":
             if not native_supported:
                 reason = "native_not_supported"
-                write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason)
+                write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
                 if allow_partial:
                     sys.exit(0)
                 print("ERROR: Native SPAN compare not supported.", file=sys.stderr)
@@ -542,7 +622,7 @@ def main():
 
             if not args.chrom_sizes or not os.path.exists(args.chrom_sizes):
                 reason = "missing_chrom_sizes"
-                write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason)
+                write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
                 if allow_partial:
                     sys.exit(0)
                 print("ERROR: Chrom sizes file required for native SPAN compare.", file=sys.stderr)
@@ -564,6 +644,10 @@ def main():
                 cmd = ["samtools", "merge", "-f", "-@", str(max(args.cpus, 1)), pooled_path] + sorted_bams
                 run_cmd(cmd, check=True)
                 run_cmd(["samtools", "index", pooled_path], check=True)
+                if use_spikein_factors:
+                    size_vals = [bam_size_factors.get(bam, 1.0) for bam in sorted_bams]
+                    pooled_size = sum(size_vals) / len(size_vals) if size_vals else 1.0
+                    bam_size_factors[pooled_path] = pooled_size
                 pooled_manifest_path = pooled_path
                 if args.pooling_dir:
                     pooled_manifest_path = os.path.join(args.pooling_dir, pooled_name)
@@ -651,11 +735,18 @@ def main():
             write_bed(bed_path, bed_rows)
 
             pseudocount = 0.5
+            treated_size_factors = None
+            control_size_factors = None
+            if use_spikein_factors:
+                treated_size_factors = [bam_size_factors.get(bam, 1.0) for bam in compare_treated_bams]
+                control_size_factors = [bam_size_factors.get(bam, 1.0) for bam in compare_control_bams]
             orientation_map = compute_orientation_log2fc(
                 bed_path,
                 compare_treated_bams,
                 compare_control_bams,
                 pseudocount,
+                treated_size_factors,
+                control_size_factors,
             )
             for row in rows:
                 key = (row.get("chr"), row.get("start"), row.get("end"))
@@ -672,6 +763,17 @@ def main():
             down_rows.sort(key=lambda x: (x[0], x[1], x[2]))
             write_bed(up_path, up_rows)
             write_bed(down_path, down_rows)
+
+            normalization_path = os.path.join(args.outdir, "span.normalization_factors.tsv")
+            write_normalization_factors(
+                normalization_path,
+                samples_sorted,
+                spikein_scale_values,
+                spikein_size_factors,
+                use_spikein_factors,
+                "native",
+            )
+            print(f"INFO: wrote normalization factors to {normalization_path}", file=sys.stderr)
 
             if pooled_rows:
                 write_tsv(
@@ -728,34 +830,14 @@ def main():
                 )
 
         normalization_path = os.path.join(args.outdir, "span.normalization_factors.tsv")
-        spikein_values = []
-        for row in samples_sorted:
-            spikein_values.append(row.get("spikein_scale_factor", "NA"))
-
-        spikein_numeric = []
-        for val in spikein_values:
-            try:
-                spikein_numeric.append(float(val))
-            except Exception:
-                spikein_numeric.append(None)
-
-        use_spikein_factors = use_spikein and any(val is not None for val in spikein_numeric)
-        with open(normalization_path, "w") as handle:
-            handle.write("sample_id\tgroup\tcondition\tspikein_scale_factor\tspikein_size_factor\tused_by_backend\n")
-            for idx, row in enumerate(samples_sorted):
-                scale_val = spikein_values[idx]
-                size_factor = "NA"
-                used_by_backend = args.fallback_backend
-                if use_spikein_factors:
-                    used_by_backend = "spikein"
-                    numeric = spikein_numeric[idx]
-                    if numeric is None or numeric == 0:
-                        size_factor = "1"
-                    else:
-                        size_factor = f"{1.0 / numeric:.6f}"
-                handle.write(
-                    f"{row.get('sample_id','')}\t{row.get('group','')}\t{row.get('condition','')}\t{scale_val}\t{size_factor}\t{used_by_backend}\n"
-                )
+        write_normalization_factors(
+            normalization_path,
+            samples_sorted,
+            spikein_scale_values,
+            spikein_size_factors,
+            use_spikein_factors,
+            args.fallback_backend,
+        )
         print(f"INFO: wrote normalization factors to {normalization_path}", file=sys.stderr)
 
         r_script = os.path.join(os.path.dirname(__file__), "span_fallback_de.R")
@@ -794,7 +876,7 @@ def main():
         finalize_success(rows, "fallback")
     except Exception as exc:
         reason = str(exc).split("\n")[0] if exc else "failed"
-        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason)
+        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
         if allow_partial:
             sys.exit(0)
         print(f"ERROR: SPAN diff failed: {exc}", file=sys.stderr)

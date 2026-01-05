@@ -29,7 +29,7 @@ def main():
         status = row.get("status") or ""
         reason = row.get("reason") or ""
         if args.manifest_only and status == "RUN":
-            status = "SKIPPED"
+            status = "SKIP"
             reason = "manifest_only"
 
         if caller != "NA":
@@ -44,6 +44,9 @@ def main():
                 "n_fdr_pass": "0",
                 "n_up": "0",
                 "n_down": "0",
+                "n_clusters": "NA",
+                "chosen_minPts": "NA",
+                "chosen_minSamps": "NA",
                 "mode": "NA",
                 "status": status,
                 "reason": reason,
@@ -61,6 +64,9 @@ def main():
                     "n_fdr_pass": "0",
                     "n_up": "0",
                     "n_down": "0",
+                    "n_clusters": "NA",
+                    "chosen_minPts": "NA",
+                    "chosen_minSamps": "NA",
                     "mode": "NA",
                     "status": status,
                     "reason": reason,
@@ -95,6 +101,9 @@ def main():
                 "n_fdr_pass": row.get("n_fdr_pass") or "0",
                 "n_up": row.get("n_up") or "0",
                 "n_down": row.get("n_down") or "0",
+                "n_clusters": row.get("n_clusters") or "NA",
+                "chosen_minPts": row.get("chosen_minPts") or "NA",
+                "chosen_minSamps": row.get("chosen_minSamps") or "NA",
                 "mode": row.get("mode") or "NA",
                 "status": row.get("status") or "RUN",
                 "reason": row.get("reason") or "ok",
@@ -117,6 +126,9 @@ def main():
         "n_fdr_pass",
         "n_up",
         "n_down",
+        "n_clusters",
+        "chosen_minPts",
+        "chosen_minSamps",
         "mode",
         "status",
         "reason",

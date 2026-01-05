@@ -178,15 +178,17 @@ def main():
             "selected_3clusters": False,
         })
 
-    best = max(results, key=lambda row: (row["score_total"], row["frac_assigned_non_noise"], row["mean_persistence"]))
+    # Rank by cluster count first, then overall score, fraction assigned, and persistence.
+    rank_key = lambda row: (row["n_clusters"], row["score_total"], row["frac_assigned_non_noise"], row["mean_persistence"])
+    best = max(results, key=rank_key)
     best_2 = None
     best_3 = None
     candidates_2 = [row for row in results if row["n_clusters"] == 2]
     candidates_3 = [row for row in results if row["n_clusters"] == 3]
     if candidates_2:
-        best_2 = max(candidates_2, key=lambda row: (row["score_total"], row["frac_assigned_non_noise"], row["mean_persistence"]))
+        best_2 = max(candidates_2, key=rank_key)
     if candidates_3:
-        best_3 = max(candidates_3, key=lambda row: (row["score_total"], row["frac_assigned_non_noise"], row["mean_persistence"]))
+        best_3 = max(candidates_3, key=rank_key)
 
     for row in results:
         if row is best:
@@ -196,7 +198,7 @@ def main():
         if best_3 is not None and row is best_3:
             row["selected_3clusters"] = True
 
-    results_sorted = sorted(results, key=lambda row: row["score_total"], reverse=True)
+    results_sorted = sorted(results, key=rank_key, reverse=True)
     write_summary(args.summary, results_sorted)
 
     labels = list(labels_by_params.get((best["min_cluster_size"], best["min_samples"]), [])) if coords else []

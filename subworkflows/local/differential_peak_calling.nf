@@ -40,7 +40,6 @@ workflow DIFFERENTIAL_PEAK_CALLING {
     ch_diffbind_significant = Channel.empty()
     ch_chipbinner_up = Channel.empty()
     ch_chipbinner_down = Channel.empty()
-    ch_chipbinner_all = Channel.empty()
     ch_span_native_significant = Channel.empty()
     ch_span_fallback_significant = Channel.empty()
 
@@ -469,7 +468,6 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         ch_summary_files = ch_summary_files.mix(CHIPBINNER_ROTS.out.summary.map { group, file -> file })
         ch_chipbinner_up = CHIPBINNER_ROTS.out.up
         ch_chipbinner_down = CHIPBINNER_ROTS.out.down
-        ch_chipbinner_all = CHIPBINNER_ROTS.out.significant
 
         if (lola_should_run) {
             ch_lola_beds = Channel.empty()
@@ -784,9 +782,6 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 }
         )
         method_beds = method_beds.mix(
-            ch_chipbinner_all.map { group, file ->
-                [group: group, method: 'chipbinner', caller: 'significant', path: file.toString(), span_mode_used: 'NA']
-            },
             ch_chipbinner_up.map { group, file ->
                 [group: group, method: 'chipbinner', caller: 'treated_enriched', path: file.toString(), span_mode_used: 'NA']
             },

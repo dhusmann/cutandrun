@@ -172,7 +172,8 @@ summary <- data.frame(
 write.table(summary, "chipbinner.summary.tsv", sep = "\t", quote = FALSE, row.names = FALSE)
 
 # Plots
-counts_log <- log2(counts + 1)
+# counts already include pseudocount from normalization
+counts_log <- log2(counts)
 try({
     pca <- prcomp(t(counts_log), scale. = TRUE)
     pdf("plots/PCA.pdf")

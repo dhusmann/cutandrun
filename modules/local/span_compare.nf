@@ -10,8 +10,8 @@ process SPAN_COMPARE {
 
     conda "conda-forge::openjdk=21.0.2 bioconda::samtools=1.19.2"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://eclipse-temurin:21-jre' :
-        'eclipse-temurin:21-jre' }"
+        'https://depot.galaxyproject.org/singularity/samtools:1.19.2--h50ea8bc_0' :
+        'biocontainers/samtools:1.19.2--h50ea8bc_0' }"
 
     input:
     tuple val(meta), path(treated_bams), path(control_bams)
@@ -38,6 +38,8 @@ process SPAN_COMPARE {
     def fdr_arg = fdr ? "--fdr ${fdr}" : ''
     def bin_arg = bin ? "--bin ${bin}" : ''
     """
+    java_cmd=\${JAVA_CMD:-java}
+
     treated_list=(${treated_bams})
     control_list=(${control_bams})
 
@@ -54,7 +56,7 @@ process SPAN_COMPARE {
         control_input=control_pool.bam
     fi
 
-    java -Xmx${java_heap} -jar ${omnipeaks_jar} compare \
+    "\$java_cmd" -Xmx${java_heap} -jar ${omnipeaks_jar} compare \
         -t ${treated_input} \
         -c ${control_input} \
         --cs ${chrom_sizes} \
@@ -90,7 +92,7 @@ process SPAN_COMPARE {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        java: \$(java -version 2>&1 | head -n 1 | sed -e 's/\"//g')
+        java: \$(\${java_cmd} -version 2>&1 | head -n 1 | sed -e 's/\"//g')
         samtools: \$(samtools --version 2>&1 | head -n 1 | sed 's/^.*samtools //; s/Using.*\$//')
     END_VERSIONS
     """

@@ -96,7 +96,7 @@ workflow PREPARE_PEAKCALLING {
         ch_bam_scale_factor_report
             .map { meta, bam, scale, reads, scope_id ->
                 [
-                    sample_id: meta.id,
+                    sample_id: meta.sample_id ?: meta.id,
                     group: meta.group,
                     condition: meta.condition,
                     replicate: meta.replicate,

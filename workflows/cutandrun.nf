@@ -707,10 +707,17 @@ workflow CUTANDRUN {
             // ch_bigwig_no_igg | view
 
             /*
+            * CHANNEL: Use spec-facing sample ids for heatmap outputs
+            */
+            ch_bigwig_no_igg
+            .map { meta, bigwig -> [meta + [id: (meta.sample_id ?: meta.id)], bigwig] }
+            .set { ch_bigwig_no_igg_heatmap }
+
+            /*
             * MODULE: Compute DeepTools matrix used in heatmap plotting for Genes
             */
             DEEPTOOLS_COMPUTEMATRIX_GENE (
-                ch_bigwig_no_igg,
+                ch_bigwig_no_igg_heatmap,
                 PREPARE_GENOME.out.bed.collect()
             )
             ch_software_versions = ch_software_versions.mix(DEEPTOOLS_COMPUTEMATRIX_GENE.out.versions)
@@ -727,20 +734,21 @@ workflow CUTANDRUN {
             * CHANNEL: Structure output for join on id
             */
             ch_peaks_summits
-            .map { meta, bed -> [meta.id, meta, bed] }
+            .map { meta, bed -> [meta.sample_id ?: meta.id, meta, bed] }
             .set { ch_peaks_summits_id }
             //ch_peaks_bed_id | view
 
             /*
             * CHANNEL: Join beds and bigwigs on id
             */
-            ch_bigwig_no_igg
+            ch_bigwig_no_igg_heatmap
             .map { meta, bigwig -> [meta.id, bigwig] }
             .join ( ch_peaks_summits_id )
             .map { row ->
                 def peak_meta = row[2]
                 def bed = row[3]
-                def heatmap_meta = peak_meta + [id: "${peak_meta.id}_${peak_meta.caller}"]
+                def sample_id = peak_meta.sample_id ?: peak_meta.id
+                def heatmap_meta = peak_meta + [id: "${sample_id}_${peak_meta.caller}"]
                 [ heatmap_meta, row[1], bed ]
             }
             .filter ( it -> it[2].size() > 1)

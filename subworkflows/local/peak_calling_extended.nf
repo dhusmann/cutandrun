@@ -116,7 +116,7 @@ workflow PEAK_CALLING_EXTENDED {
             .filter { meta, bam -> meta.control_condition && meta.control_condition != meta.condition }
             .map { meta, bam ->
                 [
-                    sample_id: meta.id,
+                    sample_id: meta.sample_id ?: meta.id,
                     group: meta.group,
                     condition: meta.condition,
                     control_group: meta.control_group,
@@ -328,7 +328,7 @@ workflow PEAK_CALLING_EXTENDED {
                 .filter { meta, bam, control_bam, used_condition, status, action, reason, pooled_path -> status != 'exact_match' }
                 .map { meta, bam, control_bam, used_condition, status, action, reason, pooled_path ->
                     [
-                        sample_id: meta.id,
+                        sample_id: meta.sample_id ?: meta.id,
                         group: meta.group,
                         condition: meta.condition,
                         caller_id: 'epic2_200bp',
@@ -344,9 +344,9 @@ workflow PEAK_CALLING_EXTENDED {
         ch_control_fallbacks = ch_control_fallbacks.mix(
             ch_epic2_200_branch.skip
                 .map { meta, bam, control_bam, used_condition, status, action, reason, pooled_path ->
-                    log.warn("Skipping epic2_200bp for sample ${meta.id} (control_group=${meta.control_group}, condition=${meta.condition}) - no pooled control available.")
+                    log.warn("Skipping epic2_200bp for sample ${meta.sample_id ?: meta.id} (control_group=${meta.control_group}, condition=${meta.condition}) - no pooled control available.")
                     [
-                        sample_id: meta.id,
+                        sample_id: meta.sample_id ?: meta.id,
                         group: meta.group,
                         condition: meta.condition,
                         caller_id: 'epic2_200bp',
@@ -386,7 +386,7 @@ workflow PEAK_CALLING_EXTENDED {
                 .filter { meta, bam, control_bam, used_condition, status, action, reason, pooled_path -> status != 'exact_match' }
                 .map { meta, bam, control_bam, used_condition, status, action, reason, pooled_path ->
                     [
-                        sample_id: meta.id,
+                        sample_id: meta.sample_id ?: meta.id,
                         group: meta.group,
                         condition: meta.condition,
                         caller_id: 'epic2_150bp',
@@ -402,9 +402,9 @@ workflow PEAK_CALLING_EXTENDED {
         ch_control_fallbacks = ch_control_fallbacks.mix(
             ch_epic2_150_branch.skip
                 .map { meta, bam, control_bam, used_condition, status, action, reason, pooled_path ->
-                    log.warn("Skipping epic2_150bp for sample ${meta.id} (control_group=${meta.control_group}, condition=${meta.condition}) - no pooled control available.")
+                    log.warn("Skipping epic2_150bp for sample ${meta.sample_id ?: meta.id} (control_group=${meta.control_group}, condition=${meta.condition}) - no pooled control available.")
                     [
-                        sample_id: meta.id,
+                        sample_id: meta.sample_id ?: meta.id,
                         group: meta.group,
                         condition: meta.condition,
                         caller_id: 'epic2_150bp',
@@ -444,7 +444,7 @@ workflow PEAK_CALLING_EXTENDED {
                 .filter { meta, bam, control_bam, used_condition, status, action, reason, pooled_path -> status != 'exact_match' }
                 .map { meta, bam, control_bam, used_condition, status, action, reason, pooled_path ->
                     [
-                        sample_id: meta.id,
+                        sample_id: meta.sample_id ?: meta.id,
                         group: meta.group,
                         condition: meta.condition,
                         caller_id: 'epic2_25bp',
@@ -460,9 +460,9 @@ workflow PEAK_CALLING_EXTENDED {
         ch_control_fallbacks = ch_control_fallbacks.mix(
             ch_epic2_25_branch.skip
                 .map { meta, bam, control_bam, used_condition, status, action, reason, pooled_path ->
-                    log.warn("Skipping epic2_25bp for sample ${meta.id} (control_group=${meta.control_group}, condition=${meta.condition}) - no pooled control available.")
+                    log.warn("Skipping epic2_25bp for sample ${meta.sample_id ?: meta.id} (control_group=${meta.control_group}, condition=${meta.condition}) - no pooled control available.")
                     [
-                        sample_id: meta.id,
+                        sample_id: meta.sample_id ?: meta.id,
                         group: meta.group,
                         condition: meta.condition,
                         caller_id: 'epic2_25bp',
@@ -506,7 +506,7 @@ workflow PEAK_CALLING_EXTENDED {
                 .filter { meta, bam, control_bam, used_condition, status, action, reason, pooled_path -> status != 'exact_match' }
                 .map { meta, bam, control_bam, used_condition, status, action, reason, pooled_path ->
                     [
-                        sample_id: meta.id,
+                        sample_id: meta.sample_id ?: meta.id,
                         group: meta.group,
                         condition: meta.condition,
                         caller_id: 'span_default',
@@ -522,9 +522,9 @@ workflow PEAK_CALLING_EXTENDED {
         ch_control_fallbacks = ch_control_fallbacks.mix(
             ch_span_default_branch.skip
                 .map { meta, bam, control_bam, used_condition, status, action, reason, pooled_path ->
-                    log.warn("Skipping span_default for sample ${meta.id} (control_group=${meta.control_group}, condition=${meta.condition}) - no pooled control available.")
+                    log.warn("Skipping span_default for sample ${meta.sample_id ?: meta.id} (control_group=${meta.control_group}, condition=${meta.condition}) - no pooled control available.")
                     [
-                        sample_id: meta.id,
+                        sample_id: meta.sample_id ?: meta.id,
                         group: meta.group,
                         condition: meta.condition,
                         caller_id: 'span_default',
@@ -565,7 +565,7 @@ workflow PEAK_CALLING_EXTENDED {
                 .filter { meta, bam, control_bam, used_condition, status, action, reason, pooled_path -> status != 'exact_match' }
                 .map { meta, bam, control_bam, used_condition, status, action, reason, pooled_path ->
                     [
-                        sample_id: meta.id,
+                        sample_id: meta.sample_id ?: meta.id,
                         group: meta.group,
                         condition: meta.condition,
                         caller_id: 'span_stringent',
@@ -581,9 +581,9 @@ workflow PEAK_CALLING_EXTENDED {
         ch_control_fallbacks = ch_control_fallbacks.mix(
             ch_span_stringent_branch.skip
                 .map { meta, bam, control_bam, used_condition, status, action, reason, pooled_path ->
-                    log.warn("Skipping span_stringent for sample ${meta.id} (control_group=${meta.control_group}, condition=${meta.condition}) - no pooled control available.")
+                    log.warn("Skipping span_stringent for sample ${meta.sample_id ?: meta.id} (control_group=${meta.control_group}, condition=${meta.condition}) - no pooled control available.")
                     [
-                        sample_id: meta.id,
+                        sample_id: meta.sample_id ?: meta.id,
                         group: meta.group,
                         condition: meta.condition,
                         caller_id: 'span_stringent',

@@ -155,7 +155,8 @@ workflow PEAK_QC {
         def group = meta.group ?: 'NA'
         def condition = meta.condition ?: 'NA'
         def caller = meta.caller ?: 'NA'
-        [meta.id, group, condition, replicate, caller, score].join('\t')
+        def sample_id = meta.sample_id ?: meta.id
+        [sample_id, group, condition, replicate, caller, score].join('\t')
     }
     .toList()
     .ifEmpty([])
@@ -172,7 +173,8 @@ workflow PEAK_QC {
         def group = meta.group ?: 'NA'
         def condition = meta.condition ?: 'NA'
         def caller = meta.caller ?: 'NA'
-        [meta.id, group, condition, replicate, caller, count].join('\t')
+        def sample_id = meta.sample_id ?: meta.id
+        [sample_id, group, condition, replicate, caller, count].join('\t')
     }
     .toList()
     .ifEmpty([])
@@ -188,7 +190,8 @@ workflow PEAK_QC {
         def group = meta.group ?: 'NA'
         def condition = meta.condition ?: 'NA'
         def caller = meta.caller ?: 'NA'
-        [meta.id, group, condition, 'NA', caller, count].join('\t')
+        def sample_id = meta.sample_id ?: meta.id
+        [sample_id, group, condition, 'NA', caller, count].join('\t')
     }
     .toList()
     .ifEmpty([])
@@ -205,7 +208,8 @@ workflow PEAK_QC {
         def group = meta.group ?: 'NA'
         def condition = meta.condition ?: 'NA'
         def caller = meta.caller ?: 'NA'
-        [meta.id, group, condition, 'NA', caller, value].join('\t')
+        def sample_id = meta.sample_id ?: meta.id
+        [sample_id, group, condition, 'NA', caller, value].join('\t')
     }
     .toList()
     .ifEmpty([])

@@ -4,7 +4,7 @@
     - test_peak_callers
     - test_peak_callers_seacr
   files:
-    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep1_T1_seacr.seacr.peaks.stringent.bed
+    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep1_seacr.seacr.peaks.stringent.bed
 
 - name: test_peak_callers_macs2
   command: nextflow run main.nf -profile docker,test --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --peakcaller macs2 -c tests/config/nextflow.config
@@ -12,7 +12,7 @@
     - test_peak_callers
     - test_peak_callers_macs2
   files:
-    - path: results/03_peak_calling/04_called_peaks/macs2/h3k27me3_NA_rep1_T1_macs2_peaks.narrowPeak
+    - path: results/03_peak_calling/04_called_peaks/macs2/h3k27me3_NA_rep1_macs2_peaks.narrowPeak
 
 - name: test_peak_callers_macs2_broad_peak
   command: nextflow run main.nf -profile docker,test --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --peakcaller macs2 --macs2_narrow_peak false -c tests/config/nextflow.config
@@ -20,7 +20,7 @@
     - test_peak_callers
     - test_peak_callers_macs2
   files:
-    - path: results/03_peak_calling/04_called_peaks/macs2/h3k27me3_NA_rep1_T1_macs2_peaks.broadPeak
+    - path: results/03_peak_calling/04_called_peaks/macs2/h3k27me3_NA_rep1_macs2_peaks.broadPeak
 
 - name: test_peak_callers_invalid_name
   command: nextflow run main.nf -profile docker,test --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --peakcaller test -c tests/config/nextflow.config
@@ -35,8 +35,8 @@
     - test_peak_callers
     - test_peak_callers_seacr_macs2
   files:
-    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep1_T1_seacr.seacr.peaks.stringent.bed
-    - path: results/03_peak_calling/04_called_peaks/macs2/h3k27me3_NA_rep1_T1_macs2_peaks.narrowPeak
+    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep1_seacr.seacr.peaks.stringent.bed
+    - path: results/03_peak_calling/04_called_peaks/macs2/h3k27me3_NA_rep1_macs2_peaks.narrowPeak
 
 - name: test_peak_callers_macs2_seacr
   command: nextflow run main.nf -profile docker,test --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --peakcaller macs2,seacr -c tests/config/nextflow.config
@@ -44,8 +44,8 @@
     - test_peak_callers
     - test_peak_callers_macs2_seacr
   files:
-    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep1_T1_seacr.seacr.peaks.stringent.bed
-    - path: results/03_peak_calling/04_called_peaks/macs2/h3k27me3_NA_rep1_T1_macs2_peaks.narrowPeak
+    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep1_seacr.seacr.peaks.stringent.bed
+    - path: results/03_peak_calling/04_called_peaks/macs2/h3k27me3_NA_rep1_macs2_peaks.narrowPeak
 
 - name: test_peak_callers_seacr_macs2_noigg
   command: nextflow run main.nf -profile docker,test_no_control --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --peakcaller seacr,macs2 -c tests/config/nextflow.config
@@ -53,8 +53,8 @@
     - test_peak_callers
     - test_peak_callers_seacr_macs2_noigg
   files:
-    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep1_T1_seacr.seacr.peaks.stringent.bed
-    - path: results/03_peak_calling/04_called_peaks/macs2/h3k27me3_NA_rep1_T1_macs2_peaks.narrowPeak
+    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep1_seacr.seacr.peaks.stringent.bed
+    - path: results/03_peak_calling/04_called_peaks/macs2/h3k27me3_NA_rep1_macs2_peaks.narrowPeak
 
 - name: test_peak_callers_seacr_single_ctrl_multi_rep
   command: nextflow run main.nf -profile docker,test --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --peakcaller seacr --input https://raw.githubusercontent.com/nf-core/test-datasets/cutandrun/samplesheet_2_0/test-GSE145187-all-multi-rep-single-ctrl.csv -c tests/config/nextflow.config
@@ -62,10 +62,10 @@
     - test_peak_callers
     - test_peak_callers_ctrl_tests
   files:
-    - path: results/03_peak_calling/04_called_peaks/seacr/h3k4me3_NA_rep1_T1_seacr.seacr.peaks.stringent.bed
-    - path: results/03_peak_calling/04_called_peaks/seacr/h3k4me3_NA_rep2_T1_seacr.seacr.peaks.stringent.bed
-    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep1_T1_seacr.seacr.peaks.stringent.bed
-    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep2_T1_seacr.seacr.peaks.stringent.bed
+    - path: results/03_peak_calling/04_called_peaks/seacr/h3k4me3_NA_rep1_seacr.seacr.peaks.stringent.bed
+    - path: results/03_peak_calling/04_called_peaks/seacr/h3k4me3_NA_rep2_seacr.seacr.peaks.stringent.bed
+    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep1_seacr.seacr.peaks.stringent.bed
+    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep2_seacr.seacr.peaks.stringent.bed
 
 - name: test_peak_callers_seacr_multi_single_ctrl_multi_rep
   command: nextflow run main.nf -profile docker,test --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --peakcaller seacr --input https://raw.githubusercontent.com/nf-core/test-datasets/cutandrun/samplesheet_2_0/test-GSE145187-all-multi-rep-multi-single-ctrl.csv -c tests/config/nextflow.config
@@ -73,10 +73,10 @@
     - test_peak_callers
     - test_peak_callers_ctrl_tests
   files:
-    - path: results/03_peak_calling/04_called_peaks/seacr/h3k4me3_NA_rep1_T1_seacr.seacr.peaks.stringent.bed
-    - path: results/03_peak_calling/04_called_peaks/seacr/h3k4me3_NA_rep2_T1_seacr.seacr.peaks.stringent.bed
-    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep1_T1_seacr.seacr.peaks.stringent.bed
-    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep2_T1_seacr.seacr.peaks.stringent.bed
+    - path: results/03_peak_calling/04_called_peaks/seacr/h3k4me3_NA_rep1_seacr.seacr.peaks.stringent.bed
+    - path: results/03_peak_calling/04_called_peaks/seacr/h3k4me3_NA_rep2_seacr.seacr.peaks.stringent.bed
+    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep1_seacr.seacr.peaks.stringent.bed
+    - path: results/03_peak_calling/04_called_peaks/seacr/h3k27me3_NA_rep2_seacr.seacr.peaks.stringent.bed
 
 - name: test_peak_callers_gopeaks_condition
   command: nextflow run main.nf -profile docker,test --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --peakcaller gopeaks_narrow --input tests/assets/samplesheet_condition.csv -c tests/config/nextflow.config
@@ -84,8 +84,8 @@
     - test_peak_callers
     - test_peak_callers_gopeaks
   files:
-    - path: results/03_peak_calling/04_called_peaks/gopeaks_narrow/h3k27me3_Control_rep1_T1_gopeaks_narrow.bed
-    - path: results/03_peak_calling/04_called_peaks/gopeaks_narrow/h3k27me3_Control_rep1_T1_gopeaks_narrow_gopeaks.json
+    - path: results/03_peak_calling/04_called_peaks/gopeaks_narrow/h3k27me3_Control_rep1_gopeaks_narrow.bed
+    - path: results/03_peak_calling/04_called_peaks/gopeaks_narrow/h3k27me3_Control_rep1_gopeaks_narrow_gopeaks.json
     - path: results/03_peak_calling/05_consensus_peaks/h3k27me3/Control/h3k27me3_Control_gopeaks_narrow.consensus.peak_counts.bed
 
 - name: test_peak_callers_epic2_condition
@@ -98,7 +98,7 @@
     - path: results/03_peak_calling/01_pooled_controls/igg_ctrl_Control.bam.bai
     - path: results/03_peak_calling/01_pooled_controls/igg_ctrl_Treatment.bam
     - path: results/03_peak_calling/01_pooled_controls/igg_ctrl_Treatment.bam.bai
-    - path: results/03_peak_calling/04_called_peaks/epic2_200bp/h3k27me3_Control_rep1_T1_epic2_200bp.peaks
+    - path: results/03_peak_calling/04_called_peaks/epic2_200bp/h3k27me3_Control_rep1_epic2_200bp.peaks
 
 - name: test_peak_callers_preset_extended
   command: nextflow run main.nf -profile docker,test --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --peakcaller_preset extended --epic2_genome hg38 --omnipeaks_jar tests/assets/omnipeaks_stub.jar -c tests/config/nextflow.config
@@ -107,7 +107,7 @@
     - test_peak_callers_preset_extended
   files:
     - path: results/03_peak_calling/01_pooled_controls/igg_ctrl_NA.bam
-    - path: results/03_peak_calling/04_called_peaks/macs2_narrow/h3k27me3_NA_rep1_T1_macs2_narrow_peaks.narrowPeak
-    - path: results/03_peak_calling/04_called_peaks/gopeaks_broad/h3k27me3_NA_rep1_T1_gopeaks_broad.bed
-    - path: results/03_peak_calling/04_called_peaks/epic2_200bp/h3k27me3_NA_rep1_T1_epic2_200bp.peaks
-    - path: results/03_peak_calling/04_called_peaks/span_default/h3k27me3_NA_rep1_T1_span_default.peak
+    - path: results/03_peak_calling/04_called_peaks/macs2_narrow/h3k27me3_NA_rep1_macs2_narrow_peaks.narrowPeak
+    - path: results/03_peak_calling/04_called_peaks/gopeaks_broad/h3k27me3_NA_rep1_gopeaks_broad.bed
+    - path: results/03_peak_calling/04_called_peaks/epic2_200bp/h3k27me3_NA_rep1_epic2_200bp.peaks
+    - path: results/03_peak_calling/04_called_peaks/span_default/h3k27me3_NA_rep1_span_default.peak

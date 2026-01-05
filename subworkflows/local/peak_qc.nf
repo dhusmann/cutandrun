@@ -9,6 +9,10 @@ include { CUT as CUT_CALC_REPROD               } from "../../modules/local/linux
 include { BEDTOOLS_INTERSECT                   } from "../../modules/nf-core/bedtools/intersect/main.nf"
 include { CALCULATE_PEAK_REPROD                } from "../../modules/local/python/peak_reprod"
 include { PLOT_CONSENSUS_PEAKS                 } from '../../modules/local/python/plot_consensus_peaks'
+include { PEAK_QC_TABLE_REPORT as PEAK_QC_FRIP_REPORT      } from "../../modules/local/peak_qc_table_report"
+include { PEAK_QC_TABLE_REPORT as PEAK_QC_COUNTS_REPORT    } from "../../modules/local/peak_qc_table_report"
+include { PEAK_QC_TABLE_REPORT as PEAK_QC_CONSENSUS_REPORT } from "../../modules/local/peak_qc_table_report"
+include { PEAK_QC_TABLE_REPORT as PEAK_QC_REPROD_REPORT    } from "../../modules/local/peak_qc_table_report"
 
 workflow PEAK_QC {
     take:
@@ -39,7 +43,7 @@ workflow PEAK_QC {
     .set { ch_frip }
 
     /*
-    * MODULE: Calculate frip scores for primary peaks
+    * MODULE: Calculate frip scores for sample peaks
     */
     PEAK_FRIP(
         ch_frip,
@@ -50,7 +54,7 @@ workflow PEAK_QC {
     // PEAK_FRIP.out.frip_mqc | view
 
     /*
-    * MODULE: Calculate peak counts for primary peaks
+    * MODULE: Calculate peak counts for sample peaks
     */
     PRIMARY_PEAK_COUNTS(
         peaks,
@@ -138,6 +142,78 @@ workflow PEAK_QC {
     ch_versions = ch_versions.mix(CALCULATE_PEAK_REPROD.out.versions)
     //EXAMPLE CHANNEL STRUCT: [[META], TSV]
     //CALCULATE_PEAK_REPROD.out.tsv
+
+    /*
+    * MODULE: Write caller-aware peak QC tables
+    */
+    def sample_header_prefix = "sample_id\tgroup\tcondition\treplicate\tcaller_id"
+
+    PEAK_FRIP.out.frip_score
+    .map { meta, score_file ->
+        def score = score_file.text.trim()
+        def replicate = meta.replicate ?: 'NA'
+        def group = meta.group ?: 'NA'
+        def condition = meta.condition ?: 'NA'
+        def caller = meta.caller ?: 'NA'
+        [meta.id, group, condition, replicate, caller, score].join('\t')
+    }
+    .toList()
+    .ifEmpty([])
+    .map { rows -> ['peak_frip_scores', "${sample_header_prefix}\tfrip_score", rows] }
+    .set { ch_frip_table }
+
+    PEAK_QC_FRIP_REPORT(ch_frip_table)
+    ch_versions = ch_versions.mix(PEAK_QC_FRIP_REPORT.out.versions)
+
+    PRIMARY_PEAK_COUNTS.out.count_value
+    .map { meta, count_file ->
+        def count = count_file.text.trim()
+        def replicate = meta.replicate ?: 'NA'
+        def group = meta.group ?: 'NA'
+        def condition = meta.condition ?: 'NA'
+        def caller = meta.caller ?: 'NA'
+        [meta.id, group, condition, replicate, caller, count].join('\t')
+    }
+    .toList()
+    .ifEmpty([])
+    .map { rows -> ['peak_counts', "${sample_header_prefix}\tpeak_count", rows] }
+    .set { ch_peak_count_table }
+
+    PEAK_QC_COUNTS_REPORT(ch_peak_count_table)
+    ch_versions = ch_versions.mix(PEAK_QC_COUNTS_REPORT.out.versions)
+
+    CONSENSUS_PEAK_COUNTS.out.count_value
+    .map { meta, count_file ->
+        def count = count_file.text.trim()
+        def group = meta.group ?: 'NA'
+        def condition = meta.condition ?: 'NA'
+        def caller = meta.caller ?: 'NA'
+        [meta.id, group, condition, 'NA', caller, count].join('\t')
+    }
+    .toList()
+    .ifEmpty([])
+    .map { rows -> ['consensus_peak_counts', "${sample_header_prefix}\tconsensus_peak_count", rows] }
+    .set { ch_consensus_count_table }
+
+    PEAK_QC_CONSENSUS_REPORT(ch_consensus_count_table)
+    ch_versions = ch_versions.mix(PEAK_QC_CONSENSUS_REPORT.out.versions)
+
+    CALCULATE_PEAK_REPROD.out.tsv
+    .map { meta, repro_file ->
+        def parts = repro_file.text.trim().split('\t')
+        def value = parts.size() > 1 ? parts[1] : ''
+        def group = meta.group ?: 'NA'
+        def condition = meta.condition ?: 'NA'
+        def caller = meta.caller ?: 'NA'
+        [meta.id, group, condition, 'NA', caller, value].join('\t')
+    }
+    .toList()
+    .ifEmpty([])
+    .map { rows -> ['peak_reproducibility', "${sample_header_prefix}\tpeak_reproducibility_percent", rows] }
+    .set { ch_reprod_table }
+
+    PEAK_QC_REPROD_REPORT(ch_reprod_table)
+    ch_versions = ch_versions.mix(PEAK_QC_REPROD_REPORT.out.versions)
 
     /*
     * CHANNEL: Prep for upset input

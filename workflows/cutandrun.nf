@@ -539,31 +539,49 @@ workflow CUTANDRUN {
         ch_peaks_primary   = ch_peaks_all.filter { it[0].caller == callers[0] }
         ch_peaks_secondary = ch_peaks_all.filter { it[0].caller != callers[0] }
 
-        if(callers[0] == 'seacr') {
+        /*
+        * CHANNEL: Build summit/peak inputs for heatmaps per caller
+        */
+        ch_peaks_summits = Channel.empty()
+        if (callers.contains('seacr')) {
             /*
             * MODULE: Extract summits from seacr peak beds
             */
             AWK_EXTRACT_SUMMITS (
-                ch_peaks_primary
+                ch_peaks_all.filter { it[0].caller == 'seacr' }
             )
-            ch_peaks_summits     = AWK_EXTRACT_SUMMITS.out.file
+            ch_peaks_summits     = ch_peaks_summits.mix(AWK_EXTRACT_SUMMITS.out.file)
             ch_software_versions = ch_software_versions.mix(AWK_EXTRACT_SUMMITS.out.versions)
             //AWK_EXTRACT_SUMMITS.out.file | view
-        } else if (callers[0].startsWith('macs2')) {
-            def use_macs2_summits = true
-            if (callers[0] == 'macs2_broad') {
-                use_macs2_summits = false
-            } else if (callers[0] == 'macs2' && !params.macs2_narrow_peak) {
-                use_macs2_summits = false
-            }
-            if (use_macs2_summits) {
-                ch_peaks_summits = ch_macs2_summits
-                    .filter { it[0].caller == callers[0] }
-            } else {
-                ch_peaks_summits = ch_peaks_primary
-            }
-        } else {
-            ch_peaks_summits = ch_peaks_primary
+        }
+
+        def macs2_summit_callers = []
+        if (callers.contains('macs2_narrow')) {
+            macs2_summit_callers.add('macs2_narrow')
+        }
+        if (callers.contains('macs2') && params.macs2_narrow_peak) {
+            macs2_summit_callers.add('macs2')
+        }
+
+        if (macs2_summit_callers) {
+            ch_peaks_summits = ch_peaks_summits.mix(
+                ch_macs2_summits.filter { macs2_summit_callers.contains(it[0].caller) }
+            )
+        }
+
+        def macs2_no_summit_callers = callers.findAll { it.startsWith('macs2') && !macs2_summit_callers.contains(it) }
+        if (macs2_no_summit_callers) {
+            ch_peaks_summits = ch_peaks_summits.mix(
+                ch_peaks_all.filter { macs2_no_summit_callers.contains(it[0].caller) }
+            )
+        }
+
+        def summit_override_callers = ['seacr'] + callers.findAll { it.startsWith('macs2') }
+        def other_callers = callers.findAll { !summit_override_callers.contains(it) }
+        if (other_callers) {
+            ch_peaks_summits = ch_peaks_summits.mix(
+                ch_peaks_all.filter { other_callers.contains(it[0].caller) }
+            )
         }
 
         /*
@@ -709,7 +727,7 @@ workflow CUTANDRUN {
             * CHANNEL: Structure output for join on id
             */
             ch_peaks_summits
-            .map { row -> [row[0].id, row ].flatten()}
+            .map { meta, bed -> [meta.id, meta, bed] }
             .set { ch_peaks_summits_id }
             //ch_peaks_bed_id | view
 
@@ -717,19 +735,25 @@ workflow CUTANDRUN {
             * CHANNEL: Join beds and bigwigs on id
             */
             ch_bigwig_no_igg
-            .map { row -> [row[0].id, row ].flatten()}
+            .map { meta, bigwig -> [meta.id, bigwig] }
             .join ( ch_peaks_summits_id )
-            .filter ( it -> it[-1].size() > 1)
+            .map { row ->
+                def peak_meta = row[2]
+                def bed = row[3]
+                def heatmap_meta = peak_meta + [id: "${peak_meta.id}_${peak_meta.caller}"]
+                [ heatmap_meta, row[1], bed ]
+            }
+            .filter ( it -> it[2].size() > 1)
             .set { ch_dt_bigwig_summits }
             //ch_dt_peaks | view
 
             ch_dt_bigwig_summits
-            .map { row -> row[1,2] }
+            .map { row -> [row[0], row[1]] }
             .set { ch_ordered_bigwig }
             //ch_ordered_bigwig | view
 
             ch_dt_bigwig_summits
-            .map { row -> row[-1] }
+            .map { row -> row[2] }
             .set { ch_ordered_peaks_max }
             //ch_ordered_peaks_max | view
 
@@ -817,22 +841,19 @@ workflow CUTANDRUN {
             * SUBWORKFLOW: Run suite of peak QC on peaks
             */
             AWK_NAME_PEAK_BED.out.file
-                .filter { it[0].caller == callers[0] }
-                .set { ch_peaks_with_ids_primary }
+                .set { ch_peaks_with_ids_all }
 
             ch_consensus_peaks
-                .filter { it[0].caller == callers[0] }
-                .set { ch_consensus_peaks_primary }
+                .set { ch_consensus_peaks_all }
 
             ch_consensus_peaks_unfilt
-                .filter { it[0].caller == callers[0] }
-                .set { ch_consensus_peaks_unfilt_primary }
+                .set { ch_consensus_peaks_unfilt_all }
 
             PEAK_QC(
-                ch_peaks_primary,
-                ch_peaks_with_ids_primary,
-                ch_consensus_peaks_primary,
-                ch_consensus_peaks_unfilt_primary,
+                ch_peaks_all,
+                ch_peaks_with_ids_all,
+                ch_consensus_peaks_all,
+                ch_consensus_peaks_unfilt_all,
                 EXTRACT_FRAGMENTS.out.bed,
                 ch_flagstat_target,
                 params.min_frip_overlap,

@@ -12,6 +12,7 @@ process PEAK_COUNTS {
     path  peak_counts_header
 
     output:
+    tuple val(meta), path("*_peak_count.txt"), emit: count_value
     tuple val(meta), path("*mqc.tsv"), emit: count_mqc
     path  "versions.yml"             , emit: versions
 
@@ -21,7 +22,9 @@ process PEAK_COUNTS {
     script:
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    cat ${bed} | wc -l | awk -v OFS='\t' '{ print "Peak Count", \$1 }' | cat $peak_counts_header - > ${prefix}_mqc.tsv
+    PEAK_COUNT=\$(cat ${bed} | wc -l | awk '{print \$1}')
+    printf "%s\\n" "\$PEAK_COUNT" > ${prefix}_peak_count.txt
+    printf "Peak Count\\t%s\\n" "\$PEAK_COUNT" | cat $peak_counts_header - > ${prefix}_mqc.tsv
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

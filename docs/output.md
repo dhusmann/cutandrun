@@ -445,9 +445,20 @@ The merge function from [BEDtools](https://github.com/arq5x/bedtools2) is used t
 
 Once the peak calling process is complete, we run a separate set of reports that analyse the quality of the results at the peak level.
 
+<details markdown="1">
+<summary>Output files</summary>
+
+- `03_peak_calling/07_qc_tables/`
+  - `peak_counts.tsv`: per-sample peak counts (includes `caller_id`).
+  - `peak_frip_scores.tsv`: per-sample FRiP scores (includes `caller_id`).
+  - `peak_reproducibility.tsv`: per-group reproducibility (includes `caller_id`).
+  - `consensus_peak_counts.tsv`: consensus peak counts (includes `caller_id`).
+
+</details>
+
 ### 7.1. <a name='PeakCounts'></a>Peak Counts
 
-For both the sample peaks and the consensus peaks, a simple count is taken. At the sample level, it is important to see consistency between peak counts of biological replicates. It is the first indicator of whether you replicates samples agree with each other after all of the processing has completed. If you use the consensus peaks and use a replicate threshold of more than 1, it is also important to see how many of your peaks across replicates have translated into consensus peaks.
+For both the sample peaks and the consensus peaks, a simple count is taken for each peak caller. At the sample level, it is important to see consistency between peak counts of biological replicates. It is the first indicator of whether you replicates samples agree with each other after all of the processing has completed. If you use the consensus peaks and use a replicate threshold of more than 1, it is also important to see how many of your peaks across replicates have translated into consensus peaks.
 
 In the image below we see comparable peak counts for the H3K27me3 dataset, but a large disparity for the H3K4me3.
 
@@ -455,7 +466,7 @@ In the image below we see comparable peak counts for the H3K27me3 dataset, but a
 
 ### 7.2. <a name='PeakReproducibility'></a>Peak Reproducibility
 
-The peak reproducibility report intersects all samples within a group using `bedtools intersect` with a minimum overlap controlled by `min_peak_overlap`. This report is useful along with the peak count report for estimating how reliable the peaks called are between your biological replicates.
+The peak reproducibility report intersects all samples within a group (per caller) using `bedtools intersect` with a minimum overlap controlled by `min_peak_overlap`. This report is useful along with the peak count report for estimating how reliable the peaks called are between your biological replicates.
 
 For example, in the image below when combined with the peak count information we see that although the H3K27me3 replicates both have similar peak counts, < 30% of the peaks are replicated across the replicate set. For H3K4me3, we see that replicate 1 has a small number of peaks called, but that almost 100% of those peaks are replicated in the second replicate. Replicate 2 has < 20% of its replicates reproduced in replicate 1 but by looking at the peak counts we can see this is due to the low number of peaks called.
 
@@ -463,7 +474,7 @@ For example, in the image below when combined with the peak count information we
 
 ### 7.3. <a name='FRiPScore'></a>FRiP Score
 
-Fraction of fragments in peaks (FRiP), defined as the fraction of all mapped paired-end reads extended into fragments that fall into the called peak regions, i.e. usable fragments in significantly enriched peaks divided by all usable fragments. In general, FRiP scores correlate positively with the number of regions. (Landt et al, Genome Research Sept. 2012, 22(9): 1813–1831). A minimum overlap is controlled by `min_frip_overlap`. The FRiP score can be used to assess the overall quality of a sample. Poor samples with a high level of background noise, small numbers of called peaks or other issues will have a large number of fragments falling outside the peaks that were called. Generally FRiP scores > 0.3 are considered to be reasonable with the highest quality data having FRiP scores of > 0.7.
+Fraction of fragments in peaks (FRiP), defined as the fraction of all mapped paired-end reads extended into fragments that fall into the called peak regions, i.e. usable fragments in significantly enriched peaks divided by all usable fragments. In general, FRiP scores correlate positively with the number of regions. (Landt et al, Genome Research Sept. 2012, 22(9): 1813–1831). A minimum overlap is controlled by `min_frip_overlap`. The FRiP score can be used to assess the overall quality of a sample. Poor samples with a high level of background noise, small numbers of called peaks or other issues will have a large number of fragments falling outside the peaks that were called. Generally FRiP scores > 0.3 are considered to be reasonable with the highest quality data having FRiP scores of > 0.7. FRiP is computed per caller when multiple peak callers are enabled.
 
 It is worth noting that the peak caller settings are also crucial to this score, as even the highest quality data will have a low FRiP score if the pipeline is parameterised in a way that calls few peaks, such as setting the peak calling threshold very high.
 
@@ -477,7 +488,7 @@ CUT&Tag inserts adapters on either side of chromatin particles in the vicinity o
 
 ### 8.1. <a name='Heatmaps'></a>Heatmaps
 
-Heatmaps for both genomic features and peaks are generated using deepTools. The parameters for the gene heatmap generation including kilobases to map before and after the gene body can be found with the prefix `dt_heatmap_gene_*`. Similarly, the peak-based heatmap parameters can be found using `dt_heatmap_peak_*`.
+Heatmaps for both genomic features and peaks are generated using deepTools. The parameters for the gene heatmap generation including kilobases to map before and after the gene body can be found with the prefix `dt_heatmap_gene_*`. Similarly, the peak-based heatmap parameters can be found using `dt_heatmap_peak_*`. When multiple peak callers are enabled, peak-based heatmaps are generated per caller and filenames include the caller id.
 
 **NB:** These reports are generated outside of MultiQC
 

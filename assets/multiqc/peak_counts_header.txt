@@ -2,8 +2,8 @@
 #parent_id: 'peak_qc'
 #parent_name: 'Peak QC'
 #parent_description: 'This section contains peak-based QC reports'
-#section_name: 'Sample Peak Count'
-#description: 'Calculated from the total number of peaks called by MACS2 or SEACR'
+#section_name: 'Sample Peak Count (per caller)'
+#description: 'Calculated from the total number of peaks called by each peak caller'
 #plot_type: 'bargraph'
 #anchor: 'primary_peakcounts'
 #pconfig:

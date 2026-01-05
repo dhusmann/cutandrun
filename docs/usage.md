@@ -171,14 +171,84 @@ After peak calling, consensus peaks are calculated by merging peaks within the s
 
 Differential analysis runs on peak-calling outputs and compares two conditions per group. The contrast is defined as `treated,control` and determines the log2FC direction (treated/control). Enable one or more methods with `--run_diffbind`, `--run_chipbinner`, or `--run_span_diff`, and provide `--differential_contrast`.
 
-Key options:
+#### Global options
 
-- `--differential_contrast "Treatment,Control"` (required when any method is enabled)
-- `--differential_min_replicates` (default: 2)
-- `--differential_allow_partial` (skip invalid comparisons instead of failing)
-- `--differential_groups` / `--differential_callers` (comma-separated allowlists)
-- `--differential_publish_manifest_only` (write manifests + design tables only)
-- `--differential_multiqc_report` (emit a differential-only MultiQC report)
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `--differential_contrast` | required | Contrast as `treated,control`. The order controls log2FC sign (treated/control). |
+| `--differential_min_replicates` | `2` | Minimum replicates per condition required for eligibility. |
+| `--differential_allow_partial` | `false` | If `true`, ineligible comparisons are marked `SKIP` and the pipeline continues. If `false`, any `FAIL` in the design table stops the pipeline. |
+| `--differential_groups` | | Comma-separated allowlist of groups to analyze. |
+| `--differential_callers` | | Comma-separated allowlist of peak callers for DiffBind (e.g., `seacr,macs2`). |
+| `--differential_use_spikein` | `auto` | `auto` uses spike-in only when `--normalisation_mode Spikein`; set `true` or `false` to override. |
+| `--differential_publish_manifest_only` | `false` | Write manifests and design tables only (no method execution). |
+| `--differential_multiqc_report` | `false` | Emit a differential-only MultiQC report. |
+
+Eligibility & allow-partial semantics:
+- Comparisons are eligible only when both contrast conditions are present and meet `--differential_min_replicates`.
+- If `--differential_allow_partial=false`, any `FAIL` in the design manifest stops the run.
+- If `--differential_allow_partial=true`, failed units are marked `SKIP` with a reason in the design + per-method summaries; other units proceed.
+
+Spike-in behavior:
+- Spike-in scaling follows the manifest `spikein_scale_factor`, with size factors defined as `size_factor = 1 / scale_factor`.
+- ChIPBinner and SPAN fallback explicitly apply these size factors and record them in normalization factor outputs.
+- DiffBind uses spike-in scaling when enabled (`--differential_use_spikein`) and otherwise uses the configured normalization method.
+
+#### DiffBind
+
+Enable with `--run_diffbind`.
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `--diffbind_fdr` | `0.05` | FDR cutoff for significant peaks. |
+| `--diffbind_lfc` | `1.0` | Absolute log2FC cutoff for up/down labeling. |
+| `--diffbind_min_overlap` | `2` | Minimum overlap count for consensus/analysis. |
+| `--diffbind_backend` | `DESeq2` | Differential backend (e.g. `DESeq2`, `edgeR`). |
+| `--diffbind_recenter_peaks` | `false` | Recenter peaks before testing. |
+| `--diffbind_summits` | `0` | Summit window width (0 uses full peaks). |
+| `--diffbind_norm_method` | `native` | Normalization method when not using spike-in. |
+| `--diffbind_extra_params` | | Optional JSON/YAML file with extra DiffBind parameters. |
+| `--export_diffbind_sheets` | `true` | Publish DiffBind sample sheets under `00_samplesheets/`. |
+
+DiffBind uses per-caller peak sets for each group and produces results tables plus diagnostic plots.
+
+#### ChIPBinner
+
+Enable with `--run_chipbinner`.
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `--chipbinner_bin_size` | `10000` | Bin size for windowing. |
+| `--chipbinner_windows_dir` | | Directory containing prebuilt windows (named `windows.<genome>.<bin>.<blacklistHash>.bed`). |
+| `--blacklist` | | Optional blacklist used to subtract windows. |
+| `--chipbinner_use_input` | `false` | Subtract pooled input/IgG per group/condition as background. Missing inputs fail fast unless `--differential_allow_partial=true`, which yields `SKIP` with an error note. |
+| `--chipbinner_ms_coeffs` | | Optional MS coefficients (by `sample_id`) used in normalization. |
+| `--chipbinner_pseudocount` | `1` | Pseudocount added before log transforms. |
+| `--chipbinner_hdbscan_grid_minpts` | `100,200,500,1000` | HDBSCAN minPts grid. |
+| `--chipbinner_hdbscan_grid_minsamps` | `100,200,500,1000` | HDBSCAN minSamps grid. |
+| `--chipbinner_fdr` | `0.05` | FDR cutoff for differential bins. |
+| `--chipbinner_lfc` | `1.0` | Absolute log2FC cutoff for up/down labeling. |
+| `--chipbinner_bootstrap` | `1000` | ROTS bootstrap iterations. |
+| `--chipbinner_k_value` | `100000` | ROTS K parameter. |
+| `--chipbinner_functional_db` | | Optional enrichment database (BED or directory of BEDs). |
+
+ChIPBinner produces: a chosen “best” clustering plus standardized 2‑cluster and 3‑cluster views (treated‑high vs control‑high vs stable). Normalization factors are written to `chipbinner.normalization_factors.tsv`.
+
+#### SPAN differential
+
+Enable with `--run_span_diff`.
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `--span_diff_mode` | `auto` | `auto` chooses native compare if supported, otherwise fallback. `native` forces compare; `fallback` skips jar compare. |
+| `--omnipeaks_jar` | required | OmniPeaks/SPAN jar for native/auto modes. |
+| `--span_diff_fdr` | `0.05` | FDR cutoff for differential regions. |
+| `--span_diff_gap` | `5` | Gap parameter for native compare. |
+| `--span_diff_bin` | `200` | Bin size for native compare. |
+| `--span_diff_java_heap` | `8G` | Java heap for jar execution. |
+| `--span_fallback_backend` | `DESeq2` | Backend for fallback differential (e.g. `DESeq2` or `edgeR`). |
+
+Native mode enforces treated/control orientation and may require pooled replicates depending on jar capabilities (recorded in `span_diff_target_pooling.tsv`). Fallback mode computes counts over merged regions and writes `span.normalization_factors.tsv`.
 
 Integrated example:
 

@@ -450,6 +450,7 @@ The merge function from [BEDtools](https://github.com/arq5x/bedtools2) is used t
   - `differential_manifest.design.tsv`: eligibility and status table for each comparison.
   - `chipbinner_input_<group>_<condition>.bam(.bai)`: pooled input/IgG BAMs when `--chipbinner_use_input` is enabled.
   - `chipbinner_windows_cache/windows.<genome>.<bin>.<blacklistHash>.bed`: cached ChIPBinner windows by genome/bin/blacklist.
+  - `span_diff_target_pooling.tsv`: emitted when SPAN native mode must pool replicates.
 - `03_peak_calling/08_differential/01_diffbind/<caller>/<group>/`
   - `diffbind.results.tsv`: full DiffBind results.
   - `diffbind.results.annotated.tsv`: DiffBind results annotated with nearest gene.
@@ -467,6 +468,7 @@ The merge function from [BEDtools](https://github.com/arq5x/bedtools2) is used t
   - `span.differential.peaks.bed`: differential regions as BED.
   - `span.differential.annotated.tsv`: annotated differential regions.
   - `span.up.bed`, `span.down.bed`: direction-specific BEDs.
+  - `span.normalization_factors.tsv`: spike-in size factors used by fallback mode.
   - `span.summary.tsv`: one-row summary for MultiQC.
   - `span.mode.txt`: mode and signature note.
 - `03_peak_calling/08_differential/multiqc/`
@@ -477,6 +479,7 @@ The merge function from [BEDtools](https://github.com/arq5x/bedtools2) is used t
 </details>
 
 Differential analysis is enabled with `--run_diffbind`, `--run_chipbinner`, and/or `--run_span_diff` plus a `--differential_contrast` definition. The pipeline always writes manifests and design tables when any differential option is enabled, even if specific comparisons are skipped.
+Summary TSVs are always produced and include `RUN`, `SKIP`, or `FAIL` plus a reason; MultiQC tables surface these statuses instead of showing placeholder results.
 
 ## 7. <a name='Peak-basedQC'></a>Peak-based QC
 

@@ -30,9 +30,10 @@ process DIFFERENTIAL_SUMMARY_MERGE {
     python - <<'PY'
     import csv
     import json
+    import sys
     from pathlib import Path
 
-    summary_files = sorted(Path('.').glob('*.summary.tsv'))
+    summary_files = sorted(Path(p) for p in sys.argv[1:])
 
     with open('${summary_header}', 'r') as header_handle:
         header_lines = header_handle.read().rstrip('\\n')
@@ -79,6 +80,7 @@ process DIFFERENTIAL_SUMMARY_MERGE {
                 'details': row.get('details', '')
             })
     PY
+    ${summary_files}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

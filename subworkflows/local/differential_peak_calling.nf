@@ -278,7 +278,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 ch_chip_records_json.map { it[0] },
                 ch_chip_records_json.map { 'NA' },
                 ch_chip_records_json.map { it[1] },
-                'sample_id\tgroup\tcondition\treplicate\tfinal_bam\tbigwig_path\tspikein_scale_factor\tms_coeff',
+                'sample_id\tgroup\tcondition\treplicate\tfinal_bam\tfinal_bai\tbigwig_path\tspikein_scale_factor\tms_coeff',
                 ch_chip_records_json.map { group, json -> "chipbinner_${group}.tsv" }
             )
             ch_versions = ch_versions.mix(RECORDS_TO_TSV_CHIPBINNER.out.versions)
@@ -297,7 +297,9 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 params.differential_contrast,
                 params.chipbinner_bin_size,
                 params.chipbinner_windows_dir ? file(params.chipbinner_windows_dir).toString() : '',
+                params.blacklist ? file(params.blacklist).toString() : '',
                 params.chipbinner_use_input,
+                use_spikein,
                 params.chipbinner_pseudocount,
                 params.chipbinner_hdbscan_grid_minpts,
                 params.chipbinner_hdbscan_grid_minsamps,
@@ -305,7 +307,8 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 params.chipbinner_lfc,
                 params.chipbinner_bootstrap,
                 params.chipbinner_k_value,
-                params.chipbinner_functional_db ? file(params.chipbinner_functional_db).toString() : ''
+                params.chipbinner_functional_db ? file(params.chipbinner_functional_db).toString() : '',
+                params.differential_allow_partial
             )
             ch_versions = ch_versions.mix(CHIPBINNER_RUN.out.versions)
 

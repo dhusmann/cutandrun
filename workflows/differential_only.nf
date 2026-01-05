@@ -47,9 +47,10 @@ workflow DIFFERENTIAL_ONLY {
     }
 
     ch_chrom_sizes = Channel.empty()
-    if (params.run_chipbinner) {
+    def need_chrom_sizes = params.run_chipbinner || (params.run_span_diff && params.span_diff_mode != 'fallback')
+    if (need_chrom_sizes) {
         if (!params.fasta) {
-            exit 1, "--fasta is required to compute chrom sizes for ChIPBinner in differential-only mode."
+            exit 1, "--fasta is required to compute chrom sizes for differential-only mode when running ChIPBinner or SPAN native/auto."
         }
         ch_fasta = Channel.of([ [id: 'genome'], file(params.fasta) ])
         CUSTOM_GETCHROMSIZES ( ch_fasta )

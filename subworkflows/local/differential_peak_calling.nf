@@ -9,10 +9,10 @@ include { DIFFERENTIAL_DESIGN } from "../../modules/local/differential_design"
 include { PUBLISH_DIFFERENTIAL_MANIFESTS } from "../../modules/local/publish_differential_manifests"
 include { RECORDS_TO_TSV as RECORDS_TO_TSV_DIFFBIND } from "../../modules/local/records_to_tsv"
 include { RECORDS_TO_TSV as RECORDS_TO_TSV_CHIPBINNER } from "../../modules/local/records_to_tsv"
-include { RECORDS_TO_TSV as RECORDS_TO_TSV_SPAN } from "../../modules/local/records_to_tsv"
 include { DIFFBIND_RUN } from "../../modules/local/diffbind_run"
 include { CHIPBINNER_RUN } from "../../modules/local/chipbinner_run"
 include { SPAN_DIFF_RUN } from "../../modules/local/span_diff_run"
+include { SPAN_POOLING_MANIFEST } from "../../modules/local/span_pooling_manifest"
 include { ANNOTATE_REGIONS } from "../../modules/local/annotate_regions"
 include { GTF_TO_GENE_BED } from "../../modules/local/gtf_to_gene_bed"
 include { BEDTOOLS_SORT as ANNOTATION_GENE_BED_SORT } from "../../modules/local/for_patch/bedtools/sort/main"
@@ -373,7 +373,11 @@ workflow DIFFERENTIAL_PEAK_CALLING {
 
             ch_samples_manifest_single = ch_samples_manifest.first()
             ch_peaks_manifest_single = ch_peaks_manifest.first()
-            ch_chrom_sizes_single = ch_chrom_sizes.collect().map { it[0] }
+            def span_chrom_sizes = ch_chrom_sizes
+            if (params.span_diff_mode == 'fallback') {
+                span_chrom_sizes = ch_chrom_sizes.ifEmpty(file("$projectDir/assets/chrom_sizes_stub.sizes"))
+            }
+            ch_chrom_sizes_single = span_chrom_sizes.collect().map { it[0] }
 
             ch_span_inputs = ch_span_design
                 .combine(ch_samples_manifest_single)
@@ -396,6 +400,17 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 params.span_diff_java_heap
             )
             ch_versions = ch_versions.mix(SPAN_DIFF_RUN.out.versions)
+
+            ch_span_pooling_files = SPAN_DIFF_RUN.out.pooling.map { it[1] }
+            ch_span_pooling_files.into { ch_span_pooling_list_in; ch_span_pooling_count_in }
+            ch_span_pooling_list = ch_span_pooling_list_in.collect()
+            ch_span_pooling_flag = ch_span_pooling_count_in.count().map { it > 0 }
+
+            SPAN_POOLING_MANIFEST (
+                ch_span_pooling_list,
+                ch_span_pooling_flag
+            )
+            ch_versions = ch_versions.mix(SPAN_POOLING_MANIFEST.out.versions)
 
             if (annotation_enabled) {
                 ch_span_annot = SPAN_DIFF_RUN.out.differential

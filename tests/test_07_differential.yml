@@ -15,4 +15,99 @@
     - path: results/03_peak_calling/08_differential/00_manifests/differential_manifest.peaks.tsv
     - path: results/03_peak_calling/08_differential/00_manifests/differential_manifest.design.tsv
     - path: results/03_peak_calling/08_differential/multiqc/differential_summary_mqc.tsv
+      contains:
+        - "manifest_only"
+        - "SKIPPED"
+      must_not_contain:
+        - "RUN\tok"
     - path: results/03_peak_calling/08_differential/multiqc/differential_design_mqc.tsv
+
+- name: test_differential_design_missing_condition
+  command: bash -c "mkdir -p tests/output && python3 bin/differential_design.py --samples tests/assets/differential_design/missing_condition.samples.tsv --peaks tests/assets/differential_design/missing_condition.peaks.tsv --contrast Treatment,Control --min-replicates 1 --run-diffbind --run-chipbinner --run-span --out tests/output/design_missing_condition.tsv && python3 bin/differential_summary.py --design tests/output/design_missing_condition.tsv --out tests/output/summary_missing_condition.tsv"
+  tags:
+    - test_differential
+    - test_differential_design
+  files:
+    - path: tests/output/design_missing_condition.tsv
+      contains:
+        - "missing_condition"
+        - "SKIP"
+    - path: tests/output/summary_missing_condition.tsv
+      contains:
+        - "missing_condition"
+        - "SKIP"
+
+- name: test_differential_design_insufficient_reps_fail
+  command: bash -c "mkdir -p tests/output && python3 bin/differential_design.py --samples tests/assets/differential_design/insufficient_reps.samples.tsv --peaks tests/assets/differential_design/insufficient_reps.peaks.tsv --contrast Treatment,Control --min-replicates 2 --run-diffbind --out tests/output/design_insufficient_fail.tsv"
+  tags:
+    - test_differential
+    - test_differential_design
+  exit_code: 1
+  stderr:
+    contains:
+      - "FAIL entries"
+
+- name: test_differential_design_insufficient_reps_allow_partial
+  command: bash -c "mkdir -p tests/output && python3 bin/differential_design.py --samples tests/assets/differential_design/insufficient_reps.samples.tsv --peaks tests/assets/differential_design/insufficient_reps.peaks.tsv --contrast Treatment,Control --min-replicates 2 --allow-partial --run-diffbind --out tests/output/design_insufficient_skip.tsv"
+  tags:
+    - test_differential
+    - test_differential_design
+  files:
+    - path: tests/output/design_insufficient_skip.tsv
+      contains:
+        - "insufficient_replicates"
+        - "SKIP"
+
+- name: test_differential_manifests_deterministic
+  command: bash -c "rm -rf tests/output/manifest_run1 tests/output/manifest_run2 && mkdir -p tests/output/manifest_run1 tests/output/manifest_run2 && python3 bin/differential_manifests.py --samples tests/assets/differential_manifest_input/samples.tsv --peaks tests/assets/differential_manifest_input/peaks.tsv --normalisation-mode NA --outdir tests/output/manifest_run1 && python3 bin/differential_manifests.py --samples tests/assets/differential_manifest_input/samples.tsv --peaks tests/assets/differential_manifest_input/peaks.tsv --normalisation-mode NA --outdir tests/output/manifest_run2 && diff -q tests/output/manifest_run1/differential_manifest.samples.tsv tests/output/manifest_run2/differential_manifest.samples.tsv && diff -q tests/output/manifest_run1/differential_manifest.peaks.tsv tests/output/manifest_run2/differential_manifest.peaks.tsv"
+  tags:
+    - test_differential
+    - test_differential_manifest
+  files:
+    - path: tests/output/manifest_run1/differential_manifest.samples.tsv
+    - path: tests/output/manifest_run1/differential_manifest.peaks.tsv
+
+- name: test_diffbind_samplesheet_publish_disabled
+  command: nextflow run main.nf -profile docker,test -stub-run -entry DIFFERENTIAL_ONLY --run_diffbind --differential_contrast Treatment,Control --differential_min_replicates 1 --differential_from_run tests/assets/diff_run_small --gene_bed tests/assets/minimal.bed --export_diffbind_sheets false --outdir results_diffbind_off -c tests/config/nextflow.config
+  tags:
+    - test_differential
+    - test_diffbind_samplesheet
+  files:
+    - path: results_diffbind_off/03_peak_calling/08_differential/01_diffbind/00_samplesheets/seacr/h3k27me3.csv
+      should_exist: false
+
+- name: test_diffbind_samplesheet_publish_enabled
+  command: nextflow run main.nf -profile docker,test -stub-run -entry DIFFERENTIAL_ONLY --run_diffbind --differential_contrast Treatment,Control --differential_min_replicates 1 --differential_from_run tests/assets/diff_run_small --gene_bed tests/assets/minimal.bed --export_diffbind_sheets true --outdir results_diffbind_on -c tests/config/nextflow.config
+  tags:
+    - test_differential
+    - test_diffbind_samplesheet
+  files:
+    - path: results_diffbind_on/03_peak_calling/08_differential/01_diffbind/00_samplesheets/seacr/h3k27me3.csv
+
+- name: test_span_mode_native_requires_compare
+  command: bash -c "mkdir -p tests/output/span_native && cd tests/output/span_native && python3 ../../bin/span_diff.py --jar ../../tests/assets/omnipeaks_stub.jar --mode native --contrast Treatment,Control --group h3k27me3 --samples ../../tests/assets/span_mode/samples.tsv --peaks ../../tests/assets/span_mode/peaks.tsv --caller-priority span_default --outdir ."
+  tags:
+    - test_differential
+    - test_span_mode
+  exit_code: 1
+
+- name: test_span_mode_auto_fallback
+  command: bash -c "mkdir -p tests/output/span_auto && cd tests/output/span_auto && python3 ../../bin/span_diff.py --jar ../../tests/assets/omnipeaks_stub.jar --mode auto --contrast Treatment,Control --group h3k27me3 --samples ../../tests/assets/span_mode/samples.tsv --peaks ../../tests/assets/span_mode/peaks.tsv --caller-priority span_default --allow-partial true --outdir ."
+  tags:
+    - test_differential
+    - test_span_mode
+  files:
+    - path: tests/output/span_auto/span.mode.txt
+      contains:
+        - "fallback"
+
+- name: test_annotation_fallback_gtf_only
+  command: nextflow run main.nf -profile docker,test -entry DIFFERENTIAL_ONLY --run_span_diff --span_diff_mode native --differential_allow_partial --differential_contrast Treatment,Control --differential_min_replicates 1 --differential_from_run tests/assets/diff_run_small --omnipeaks_jar tests/assets/omnipeaks_stub.jar --gtf tests/assets/minimal.gtf --fasta tests/assets/minimal.fa --outdir results_annotation_gtf -c tests/config/nextflow.config
+  tags:
+    - test_differential
+    - test_annotation_fallback
+  files:
+    - path: results_annotation_gtf/03_peak_calling/08_differential/03_span/h3k27me3/span.differential.annotated.tsv
+      contains:
+        - "nearest_feature_id"
+        - "nearest_gene_name"

@@ -1,0 +1,4 @@
+sample_id	group	condition	replicate	caller	peaks_path	peaks_format
+s3	groupA	Control	1	seacr	peaks3.bed	bed
+s1	groupA	Treatment	1	macs2	peaks1.bed	bed
+s2	groupB	Control	2	seacr	peaks2.bed	bed

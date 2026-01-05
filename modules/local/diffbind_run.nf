@@ -61,4 +61,43 @@ process DIFFBIND_RUN {
         R: \$(R --version | head -n 1 | sed 's/.* //')
     END_VERSIONS
     """
+
+    stub:
+    """
+    mkdir -p plots
+    cat <<-EOF > diffbind.samplesheet.csv
+SampleID,Factor,Condition,Replicate,bamReads,Peaks,PeakCaller,Tissue
+stub,${group},stub,1,stub.bam,stub.peak,${caller},CUTRUN
+EOF
+
+    cat <<-EOF > diffbind.results.tsv
+chr\tstart\tend\tlog2FC\tpval\tFDR
+chr1\t1\t2\t0.0\t1.0\t1.0
+EOF
+
+    printf "chr1\t1\t2\n" > diffbind.significant.bed
+    printf "chr1\t1\t2\n" > diffbind.significant_up.bed
+    printf "chr1\t1\t2\n" > diffbind.significant_down.bed
+
+    cat <<-EOF > diffbind.summary.tsv
+caller\tgroup\ttreated\tcontrol\tn_tested\tn_fdr_pass\tn_up\tn_down\tstatus\treason
+${caller}\t${group}\tstub\tstub\t1\t0\t0\t0\tRUN\tok
+EOF
+
+    cat <<-EOF > diffbind.normalization_factors.tsv
+sample_id\tsize_factor
+stub\t1.0
+EOF
+
+    echo "stub" > diffbind.dba.rds
+    echo "stub" > plots/PCA.pdf
+    echo "stub" > plots/correlation_heatmap.pdf
+    echo "stub" > plots/MA.pdf
+    echo "stub" > plots/volcano.pdf
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        R: stub
+    END_VERSIONS
+    """
 }

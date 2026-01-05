@@ -1,0 +1,3 @@
+sample_id	group	condition	replicate	final_bam	final_bai	normalisation_mode	spikein_scale_factor	ms_coeff	bigwig_path
+sample1	h3k27me3	Treatment	1	NA	NA	NA	NA	NA	NA
+sample2	h3k27me3	Control	1	NA	NA	NA	NA	NA	NA

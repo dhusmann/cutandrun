@@ -136,6 +136,24 @@
   files:
     - path: results/pipeline_info/samplesheet.valid.csv
 
+# Test condition samplesheet missing control (fail-fast)
+- name: test_samplesheet_condition_missing_control_failfast
+  command: nextflow run main.nf -profile docker,test --only_input --input tests/assets/samplesheet_condition_missing_control.csv -c tests/config/nextflow.config
+  tags:
+    - test_samplesheet_condition
+  exit_code: 1
+  stdout:
+    contains:
+      - "Missing condition-matched controls"
+
+# Test condition samplesheet missing control with override
+- name: test_samplesheet_condition_missing_control_allow_cross
+  command: nextflow run main.nf -profile docker,test --only_input --allow_cross_condition_controls --input tests/assets/samplesheet_condition_missing_control.csv -c tests/config/nextflow.config
+  tags:
+    - test_samplesheet_condition
+  files:
+    - path: results/pipeline_info/samplesheet.valid.csv
+
 # Test small tech reps
 - name: test_samplesheet_small_tech_reps
   command: nextflow run main.nf -profile docker,test --only_input --input https://raw.githubusercontent.com/nf-core/test-datasets/cutandrun/samplesheet_2_0/test-GSE145187-small-tech-reps.csv -c tests/config/nextflow.config

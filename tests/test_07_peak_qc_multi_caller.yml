@@ -1,0 +1,15 @@
+- name: test_peak_qc_multi_caller
+  command: nextflow run main.nf -profile docker,test --skip_fastqc --skip_preseq --skip_multiqc --peakcaller seacr,macs2_narrow -c tests/config/nextflow.config
+  tags:
+    - test_peak_qc_multi_caller
+  files:
+    - path: results/03_peak_calling/07_qc_tables/peak_counts.tsv
+      contains:
+        - "seacr"
+        - "macs2_narrow"
+      must_not_contain:
+        - "_T"
+    - path: results/03_peak_calling/07_qc_tables/peak_frip_scores.tsv
+      contains:
+        - "seacr"
+        - "macs2_narrow"

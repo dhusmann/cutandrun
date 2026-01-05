@@ -279,13 +279,13 @@ workflow PEAK_CALLING_EXTENDED {
                     return [meta, bam, null, null, 'missing_control', 'skipped', 'no_control_for_group', null]
                 }
                 def exact = entries.find { it[0] == meta.control_condition }
-                def chosen = exact ?: entries[0]
-                def used_condition = chosen[0]
-                def control_bam = chosen[1]
-                def status = exact ? 'exact_match' : 'fallback_other_condition'
-                def action = 'used'
-                def reason = exact ? 'exact_condition' : 'condition_fallback'
-                [meta, bam, control_bam, used_condition, status, action, reason, control_bam]
+                if (exact) {
+                    def used_condition = exact[0]
+                    def control_bam = exact[1]
+                    return [meta, bam, control_bam, used_condition, 'exact_match', 'used', 'exact_condition', control_bam]
+                }
+                def fallback_condition = entries[0][0]
+                return [meta, bam, null, fallback_condition, 'fallback_other_condition', 'skipped', 'no_exact_condition_match', null]
             }
     }
 

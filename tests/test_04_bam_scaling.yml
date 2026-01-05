@@ -13,6 +13,7 @@
     - test_bam_scale_spikein
   files:
     - path: results/03_peak_calling/01_bam_to_bedgraph/h3k27me3_NA_rep1.sorted.bedGraph
+    - path: results/03_peak_calling/00_normalisation_factors/all.tsv
 
 - name: test_bam_scale_cpm
   command: nextflow run main.nf -profile docker,test --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_preseq --skip_multiqc --normalisation_mode CPM -c tests/config/nextflow.config

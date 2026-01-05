@@ -489,17 +489,17 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                         if (label == 'noise') {
                             return null
                         }
-                        def lola_label = (model == 'best' || model == '') ? label : "${label}.${model}"
-                        [group, lola_label, file(bed_path)]
+                        def bed_file = manifest.parent ? new File(manifest.parent, bed_path) : new File(bed_path)
+                        [group, label, model, file(bed_file.toString())]
                     }.findAll { it != null }
                 }
 
             ch_lola_inputs = CHIPBINNER_BINS.out.bins.join(ch_lola_beds)
-                .map { group, bins_file, label, bed_file -> [group, label, bed_file, bins_file] }
+                .map { group, bins_file, label, model, bed_file -> [group, label, model, bed_file, bins_file] }
 
             CHIPBINNER_LOLA(
-                ch_lola_inputs.map { group, label, bed_file, bins_file -> [group, label, bed_file] },
-                ch_lola_inputs.map { group, label, bed_file, bins_file -> bins_file },
+                ch_lola_inputs.map { group, label, model, bed_file, bins_file -> [group, label, model, bed_file] },
+                ch_lola_inputs.map { group, label, model, bed_file, bins_file -> bins_file },
                 Channel.value(lola_db_path)
             )
             ch_versions = ch_versions.mix(CHIPBINNER_LOLA.out.versions)

@@ -180,8 +180,8 @@ def main():
             "selected_3clusters": False,
         })
 
-    # Rank by cluster count first, then overall score, fraction assigned, and stability.
-    rank_key = lambda row: (row["n_clusters"], row["score_total"], row["frac_assigned_non_noise"], row["cluster_stability_metric"])
+    # Rank by overall score first, then cluster count, fraction assigned, and stability.
+    rank_key = lambda row: (row["score_total"], row["n_clusters"], row["frac_assigned_non_noise"], row["cluster_stability_metric"])
     best = max(results, key=rank_key)
     best_2 = None
     best_3 = None

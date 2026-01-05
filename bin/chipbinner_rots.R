@@ -159,7 +159,7 @@ write_cluster_beds <- function(results_df, labels, suffix, model, manifest_df) {
                 data.frame(
                     model = model,
                     label = label,
-                    bed = normalizePath(bed_file, mustWork = FALSE),
+                    bed = bed_file,
                     stringsAsFactors = FALSE
                 )
             )
@@ -181,8 +181,34 @@ if (is.null(cluster_labels_best)) {
     cluster_labels_best <- rep("NA", nrow(results))
 }
 
+cluster_ids_2_raw <- cluster_ids_from_df(clusters_2, results)
+cluster_labels_2_raw <- compute_cluster_labels(cluster_ids_2_raw, counts, conditions, opt$treated, opt$control, opt$lfc)
+cluster_ids_2 <- cluster_ids_2_raw
+cluster_labels_2 <- cluster_labels_2_raw
+if (is.null(cluster_ids_2)) {
+    cluster_ids_2 <- rep(NA, nrow(results))
+}
+if (is.null(cluster_labels_2)) {
+    cluster_labels_2 <- rep("NA", nrow(results))
+}
+
+cluster_ids_3_raw <- cluster_ids_from_df(clusters_3, results)
+cluster_labels_3_raw <- compute_cluster_labels(cluster_ids_3_raw, counts, conditions, opt$treated, opt$control, opt$lfc)
+cluster_ids_3 <- cluster_ids_3_raw
+cluster_labels_3 <- cluster_labels_3_raw
+if (is.null(cluster_ids_3)) {
+    cluster_ids_3 <- rep(NA, nrow(results))
+}
+if (is.null(cluster_labels_3)) {
+    cluster_labels_3 <- rep("NA", nrow(results))
+}
+
 results$cluster_id <- cluster_ids_best
 results$cluster_label <- cluster_labels_best
+results$cluster_id_2clusters <- cluster_ids_2
+results$cluster_label_2clusters <- cluster_labels_2
+results$cluster_id_3clusters <- cluster_ids_3
+results$cluster_label_3clusters <- cluster_labels_3
 
 write.table(results, "chipbinner.differential.tsv", sep = "\t", quote = FALSE, row.names = FALSE)
 
@@ -201,14 +227,12 @@ bed_manifest <- data.frame(
 )
 bed_manifest <- write_cluster_beds(results, cluster_labels_best, "", "best", bed_manifest)
 
-cluster_labels_2 <- compute_cluster_labels(cluster_ids_from_df(clusters_2, results), counts, conditions, opt$treated, opt$control, opt$lfc)
-if (!is.null(cluster_labels_2)) {
-    bed_manifest <- write_cluster_beds(results, cluster_labels_2, "2clusters", "2clusters", bed_manifest)
+if (!is.null(cluster_labels_2_raw)) {
+    bed_manifest <- write_cluster_beds(results, cluster_labels_2_raw, "2clusters", "2clusters", bed_manifest)
 }
 
-cluster_labels_3 <- compute_cluster_labels(cluster_ids_from_df(clusters_3, results), counts, conditions, opt$treated, opt$control, opt$lfc)
-if (!is.null(cluster_labels_3)) {
-    bed_manifest <- write_cluster_beds(results, cluster_labels_3, "3clusters", "3clusters", bed_manifest)
+if (!is.null(cluster_labels_3_raw)) {
+    bed_manifest <- write_cluster_beds(results, cluster_labels_3_raw, "3clusters", "3clusters", bed_manifest)
 }
 
 write.table(bed_manifest, "chipbinner.cluster_beds.tsv", sep = "\t", quote = FALSE, row.names = FALSE)

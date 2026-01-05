@@ -1,9 +1,9 @@
 process CHIPBINNER_LOLA {
-    tag "${group}.${label}"
+    tag "${group}.${model}.${label}"
     label 'process_medium'
 
     publishDir = [
-        path: { "${params.outdir}/03_peak_calling/06_differential/02_chipbinner/${group}/enrichment" },
+        path: { "${params.outdir}/03_peak_calling/06_differential/02_chipbinner/${group}/enrichment${model && model != 'best' ? '/' + model : ''}" },
         mode: params.publish_dir_mode,
         saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
     ]
@@ -14,13 +14,13 @@ process CHIPBINNER_LOLA {
         'biocontainers/bioconductor-lola:1.28.0--r42hdfd78af_0' }"
 
     input:
-    tuple val(group), val(label), path(bed)
+    tuple val(group), val(label), val(model), path(bed)
     path universe
     path lola_db
 
     output:
-    tuple val(group), val(label), path("${label}.lola.tsv"), emit: tsv
-    tuple val(group), val(label), path("${label}.lola_plot.pdf"), optional: true, emit: plot
+    tuple val(group), val(label), val(model), path("${label}_lola.tsv"), emit: tsv
+    tuple val(group), val(label), val(model), path("${label}_lola_plot.pdf"), optional: true, emit: plot
     path "versions.yml", emit: versions
 
     when:
@@ -33,8 +33,8 @@ process CHIPBINNER_LOLA {
         --universe ${universe} \
         --db ${lola_db} \
         --label ${label} \
-        --out_tsv ${label}.lola.tsv \
-        --out_pdf ${label}.lola_plot.pdf
+        --out_tsv ${label}_lola.tsv \
+        --out_pdf ${label}_lola_plot.pdf
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

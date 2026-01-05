@@ -138,6 +138,7 @@ def write_samplesheet(samples, out_path):
         "spikein_scale_factor",
         "ms_coeff",
         "input_bam",
+        "input_bai",
     ]
     with open(out_path, "w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=header)
@@ -154,6 +155,7 @@ def write_samplesheet(samples, out_path):
                 "spikein_scale_factor": row.get("spikein_scale_factor", ""),
                 "ms_coeff": row.get("ms_coeff", ""),
                 "input_bam": row.get("input_bam", ""),
+                "input_bai": row.get("input_bai", ""),
             })
 
 def compute_counts(windows_path, samples, out_path, use_input=False):
@@ -177,11 +179,13 @@ def compute_counts(windows_path, samples, out_path, use_input=False):
     counts["bin_id"] = counts.apply(lambda r: f"{r.chrom}:{int(r.start)}-{int(r.end)}", axis=1)
 
     if use_input:
-        input_bams = sorted({row.get("input_bam") for row in samples if row.get("input_bam") not in (None, "", "NA")})
-        if not input_bams:
-            raise RuntimeError("chipbinner_use_input requested but no input_bam values were provided")
-        input_counts = None
-        for bam in input_bams:
+        input_counts_map = {}
+        for row in samples:
+            bam = row.get("input_bam")
+            if not bam or bam in ("NA", "None", "none", ""):
+                raise RuntimeError("chipbinner_use_input requested but no input_bam values were provided")
+            if bam in input_counts_map:
+                continue
             if not os.path.exists(bam):
                 raise RuntimeError(f"Input BAM not found: {bam}")
             with tempfile.NamedTemporaryFile(delete=False) as tmp_handle:
@@ -191,12 +195,11 @@ def compute_counts(windows_path, samples, out_path, use_input=False):
                 run_cmd(cmd, stdout=handle)
             tmp_df = pd.read_csv(tmp_path, sep="\t", header=None, names=["chrom", "start", "end", "count"])
             os.unlink(tmp_path)
-            if input_counts is None:
-                input_counts = tmp_df["count"].astype(float).values
-            else:
-                input_counts += tmp_df["count"].astype(float).values
-        input_counts = input_counts / len(input_bams)
-        counts[sample_ids] = counts[sample_ids].astype(float).sub(input_counts, axis=0).clip(lower=0)
+            input_counts_map[bam] = tmp_df["count"].astype(float).values
+
+        for sample_id, row in zip(sample_ids, samples):
+            bam = row.get("input_bam")
+            counts[sample_id] = counts[sample_id].astype(float).sub(input_counts_map[bam], axis=0).clip(lower=0)
     return counts, sample_ids
 
 
@@ -517,7 +520,7 @@ def write_summary(path, group, treated, control, n_bins, n_fdr, n_up, n_down, n_
         ])
 
 
-def write_empty_outputs(outdir, group, sample_ids, treated, control, reason):
+def write_empty_outputs(outdir, group, sample_ids, treated, control, reason, status="FAIL"):
     windows_path = os.path.join(outdir, "chipbinner.windows.bed")
     counts_path = os.path.join(outdir, "chipbinner.bin_counts.tsv")
     norm_path = os.path.join(outdir, "chipbinner.normalized_matrix.tsv")
@@ -540,7 +543,7 @@ def write_empty_outputs(outdir, group, sample_ids, treated, control, reason):
         handle.write("chrom\tstart\tend\tcluster\n")
     with open(diff_path, "w") as handle:
         handle.write("chrom\tstart\tend\tbin_id\tlog2FC\tpval\tFDR\tcluster\tdirection\n")
-    write_summary(summary_path, group, treated, control, 0, 0, 0, 0, 0, "NA", "NA", "FAIL", reason, "NOT_RUN")
+    write_summary(summary_path, group, treated, control, 0, 0, 0, 0, 0, "NA", "NA", status, reason, "NOT_RUN")
 
 
 def main():
@@ -568,6 +571,31 @@ def main():
 
     samplesheet_path = os.path.join(args.outdir, "chipbinner.samplesheet.csv")
     write_samplesheet(samples, samplesheet_path)
+
+    if args.use_input:
+        missing_samples = []
+        missing_paths = []
+        for row in samples:
+            bam = row.get("input_bam")
+            if not bam or bam in ("NA", "None", "none", ""):
+                missing_samples.append(row.get("sample_id", ""))
+            elif not os.path.exists(bam):
+                missing_paths.append(bam)
+        if missing_samples or missing_paths:
+            details = []
+            if missing_samples:
+                details.append(f"samples={','.join(sorted(set(missing_samples)))}")
+            if missing_paths:
+                details.append(f"paths={','.join(sorted(set(missing_paths)))}")
+            reason = "MISSING_INPUT_BAM"
+            if details:
+                reason = f"{reason}:" + ";".join(details)
+            if args.allow_partial:
+                write_empty_outputs(args.outdir, args.group, sample_ids, treated_label, control_label, reason, status="SKIP")
+                return
+            raise RuntimeError(
+                f"chipbinner_use_input requested but input BAMs are missing ({'; '.join(details) or 'no input_bam values'})."
+            )
 
     windows_source = choose_windows_file(args.windows_dir, args.bin_size)
     windows_path = os.path.join(args.outdir, "chipbinner.windows.bed")

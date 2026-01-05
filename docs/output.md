@@ -445,9 +445,10 @@ The merge function from [BEDtools](https://github.com/arq5x/bedtools2) is used t
 <summary>Output files</summary>
 
 - `03_peak_calling/08_differential/00_manifests/`
-  - `differential_manifest.samples.tsv`: per-sample manifest with BAM/BAI, scale factors, and bigWig paths.
+  - `differential_manifest.samples.tsv`: per-sample manifest with BAM/BAI, optional input BAMs, scale factors, and bigWig paths.
   - `differential_manifest.peaks.tsv`: per-sample per-caller peak paths and formats.
   - `differential_manifest.design.tsv`: eligibility and status table for each comparison.
+  - `chipbinner_input_<group>_<condition>.bam(.bai)`: pooled input/IgG BAMs when `--chipbinner_use_input` is enabled.
 - `03_peak_calling/08_differential/01_diffbind/<caller>/<group>/`
   - `diffbind.results.tsv`: full DiffBind results.
   - `diffbind.results.annotated.tsv`: DiffBind results annotated with nearest gene.

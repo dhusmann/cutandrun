@@ -246,17 +246,19 @@ and are consumed in posthoc mode from the prior run’s outdir.
 differential_manifest.samples.tsv
 One row per target sample.
 
-Columns:
-	•	sample_id
-	•	group
-	•	condition
-	•	replicate
-	•	final_bam
-	•	final_bai
-	•	normalisation_mode
-	•	spikein_scale_factor (numeric or NA)
-	•	ms_coeff (numeric or NA)
-	•	bigwig_path (path or NA)
+	Columns:
+		•	sample_id
+		•	group
+		•	condition
+		•	replicate
+		•	final_bam
+		•	final_bai
+		•	normalisation_mode
+		•	spikein_scale_factor (numeric or NA)
+		•	ms_coeff (numeric or NA)
+		•	bigwig_path (path or NA)
+		•	input_bam (path or NA)
+		•	input_bai (path or NA)
 
 differential_manifest.peaks.tsv
 One row per (sample_id × caller) peak file.
@@ -622,6 +624,8 @@ All differential outputs live under:
     differential_manifest.samples.tsv
     differential_manifest.peaks.tsv
     differential_manifest.design.tsv
+    chipbinner_input_<group>_<condition>.bam (optional)
+    chipbinner_input_<group>_<condition>.bam.bai (optional)
     span_diff_target_pooling.tsv (optional)
   01_diffbind/
     00_samplesheets/<caller>/<group>.csv
@@ -709,4 +713,3 @@ Use --differential_publish_manifest_only and/or a stub profile to avoid heavy co
 	•	Batch covariates in statistical models.
 	•	Deep cross-method concordance (beyond lightweight summary tables).
 	•	Automatic peak caller benchmarking.
-

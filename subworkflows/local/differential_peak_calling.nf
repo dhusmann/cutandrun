@@ -11,6 +11,7 @@ include { RECORDS_TO_TSV as RECORDS_TO_TSV_DIFFBIND } from "../../modules/local/
 include { RECORDS_TO_TSV as RECORDS_TO_TSV_CHIPBINNER } from "../../modules/local/records_to_tsv"
 include { DIFFBIND_RUN } from "../../modules/local/diffbind_run"
 include { CHIPBINNER_RUN } from "../../modules/local/chipbinner_run"
+include { POOL_IGG_CONTROLS } from "../../modules/local/pool_igg_controls"
 include { SPAN_DIFF_RUN } from "../../modules/local/span_diff_run"
 include { SPAN_POOLING_MANIFEST } from "../../modules/local/span_pooling_manifest"
 include { ANNOTATE_REGIONS } from "../../modules/local/annotate_regions"
@@ -73,6 +74,8 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             ch_bai_target = ch_bai.filter { it[0].is_control == false }
             ch_bigwig_target = ch_bigwig.filter { it[0].is_control == false }
             ch_scale_target = ch_scale_factors.filter { it[0].is_control == false }
+            ch_bam_control = ch_bam.filter { it[0].is_control == true }
+            ch_bai_control = ch_bai.filter { it[0].is_control == true }
 
             ch_scale_map = ch_scale_target
                 .map { meta, scale -> [meta.id, scale] }
@@ -100,18 +103,116 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                     out
                 }
 
-            ch_samples_raw = ch_bam_target
+            def build_control_condition_map = { ch_control ->
+                ch_control
+                    .map { meta, file -> [meta.group, meta.condition] }
+                    .toList()
+                    .map { list ->
+                        def control_map = [:].withDefault { [] }
+                        list.each { entry ->
+                            def group = entry[0]
+                            def condition = entry[1]
+                            control_map[group] = (control_map[group] ?: []) + [condition]
+                        }
+                        control_map
+                    }
+            }
+
+            def add_control_condition = { ch_target, ch_control ->
+                def control_map_ch = build_control_condition_map(ch_control)
+                ch_target
+                    .combine(control_map_ch)
+                    .map { meta, file, control_map ->
+                        def control_group = meta.control_group ?: meta.group
+                        def conditions = control_map.get(control_group, [])
+                        def control_condition = meta.condition
+                        if (conditions) {
+                            if (conditions.contains(meta.condition)) {
+                                control_condition = meta.condition
+                            } else if (conditions.contains('NA')) {
+                                control_condition = 'NA'
+                            } else {
+                                control_condition = conditions.sort()[0]
+                            }
+                        }
+                        def meta_out = meta + [control_condition: control_condition]
+                        [meta_out, file]
+                    }
+            }
+
+            ch_bam_target_cc = add_control_condition(ch_bam_target, ch_bam_control)
+
+            ch_input_map = Channel.value([:])
+            if (params.chipbinner_use_input) {
+                ch_pooled_inputs = ch_bam_control
+                    .map { meta, bam -> ["${meta.group}__${meta.condition}", [meta, bam]] }
+                    .groupTuple(by: [0])
+                    .map { key, entries ->
+                        def meta0 = entries[0][0]
+                        def pooled_meta = meta0 + [
+                            id: "chipbinner_input_${meta0.group}_${meta0.condition}",
+                            control_group: meta0.group,
+                            is_control: true
+                        ]
+                        def bams = entries.collect { it[1] }.sort { it.getName() }
+                        [pooled_meta, bams]
+                    }
+
+                POOL_IGG_CONTROLS ( ch_pooled_inputs ) {
+                    ext.publish_dir = "${diff_outdir}/00_manifests"
+                }
+                ch_versions = ch_versions.mix(POOL_IGG_CONTROLS.out.versions)
+
+                ch_pooled_controls = POOL_IGG_CONTROLS.out.bam
+                    .map { meta, bam -> [meta.id, meta, bam] }
+                    .join(POOL_IGG_CONTROLS.out.bai.map { meta, bai -> [meta.id, bai] })
+                    .map { id, meta, bam, bai -> [meta, bam, bai] }
+
+                ch_input_map = ch_pooled_controls
+                    .map { meta, bam, bai -> [meta.group, meta.condition, bam, bai] }
+                    .toList()
+                    .ifEmpty([])
+                    .map { list ->
+                        def map = [:].withDefault { [:] }
+                        list.each { entry ->
+                            def group = entry[0]
+                            def condition = entry[1]
+                            def group_map = map[group] ?: [:]
+                            group_map[condition] = [entry[2], entry[3]]
+                            map[group] = group_map
+                        }
+                        map
+                    }
+            }
+
+            ch_samples_raw = ch_bam_target_cc
                 .map { meta, bam -> [meta.id, meta, bam] }
                 .join(ch_bai_target.map { meta, bai -> [meta.id, bai] })
                 .map { id, meta, bam, bai -> [meta, bam, bai] }
                 .combine(ch_bigwig_map)
                 .combine(ch_scale_map)
-                .map { meta, bam, bai, bw_map, scale_map ->
+                .combine(ch_input_map)
+                .map { meta, bam, bai, bw_map, scale_map, input_map ->
                     def bigwig = bw_map.get(meta.id) ?: 'NA'
                     def scale = scale_map.get(meta.id) ?: 'NA'
                     def bam_path = "${bam_dir}/${bam.getName()}"
                     def bai_path = "${bam_dir}/${bai.getName()}"
                     def bigwig_path = bigwig == 'NA' ? 'NA' : "${bigwig_dir}/${bigwig.getName()}"
+                    def control_group = meta.control_group ?: meta.group
+                    def control_condition = meta.control_condition ?: meta.condition
+                    def input_entry = input_map.get(control_group, [:]).get(control_condition)
+                    def input_bam_path = 'NA'
+                    def input_bai_path = 'NA'
+                    if (input_entry) {
+                        def input_bam = input_entry[0]
+                        def input_bai = input_entry[1]
+                        if (input_bam) {
+                            input_bam_path = "${diff_outdir}/00_manifests/${input_bam.getName()}"
+                        }
+                        if (input_bai) {
+                            input_bai_path = "${diff_outdir}/00_manifests/${input_bai.getName()}"
+                        }
+                    }
                     [
                         sample_id: meta.id,
                         group: meta.group,
@@ -120,14 +221,16 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                         final_bam: bam_path,
                         final_bai: bai_path,
                         spikein_scale_factor: scale,
-                        bigwig_path: bigwig_path
+                        bigwig_path: bigwig_path,
+                        input_bam: input_bam_path,
+                        input_bai: input_bai_path
                     ]
                 }
                 .map { row ->
-                    "${row.sample_id}\t${row.group}\t${row.condition}\t${row.replicate}\t${row.final_bam}\t${row.final_bai}\t${row.spikein_scale_factor}\t${row.bigwig_path}"
+                    "${row.sample_id}\t${row.group}\t${row.condition}\t${row.replicate}\t${row.final_bam}\t${row.final_bai}\t${row.spikein_scale_factor}\t${row.bigwig_path}\t${row.input_bam}\t${row.input_bai}"
                 }
 
-            def samples_header = "sample_id\tgroup\tcondition\treplicate\tfinal_bam\tfinal_bai\tspikein_scale_factor\tbigwig_path"
+            def samples_header = "sample_id\tgroup\tcondition\treplicate\tfinal_bam\tfinal_bai\tspikein_scale_factor\tbigwig_path\tinput_bam\tinput_bai"
             ch_samples_raw = ch_samples_raw
                 .collect()
                 .map { rows -> ([samples_header] + rows).join('\n') + '\n' }
@@ -313,7 +416,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 ch_chip_records_json.map { it[0] },
                 ch_chip_records_json.map { 'NA' },
                 ch_chip_records_json.map { it[1] },
-                'sample_id\tgroup\tcondition\treplicate\tfinal_bam\tfinal_bai\tbigwig_path\tspikein_scale_factor\tms_coeff',
+                'sample_id\tgroup\tcondition\treplicate\tfinal_bam\tfinal_bai\tbigwig_path\tspikein_scale_factor\tms_coeff\tinput_bam\tinput_bai',
                 ch_chip_records_json.map { group, json -> "chipbinner_${group}.tsv" }
             )
             ch_versions = ch_versions.mix(RECORDS_TO_TSV_CHIPBINNER.out.versions)
@@ -377,12 +480,12 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             if (params.span_diff_mode == 'fallback') {
                 span_chrom_sizes = ch_chrom_sizes.ifEmpty(file("$projectDir/assets/chrom_sizes_stub.sizes"))
             }
-            ch_chrom_sizes_single = span_chrom_sizes.collect().map { it[0] }
+            ch_span_chrom_sizes_single = span_chrom_sizes.collect().map { it[0] }
 
             ch_span_inputs = ch_span_design
                 .combine(ch_samples_manifest_single)
                 .combine(ch_peaks_manifest_single)
-                .combine(ch_chrom_sizes_single)
+                .combine(ch_span_chrom_sizes_single)
                 .map { group, samples_manifest, peaks_manifest, chrom_sizes -> [ group, samples_manifest, peaks_manifest, chrom_sizes ] }
 
             SPAN_DIFF_RUN (

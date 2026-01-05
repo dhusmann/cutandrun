@@ -57,6 +57,8 @@ def write_samples(samples_rows, ms_coeffs, normalisation_mode, out_path):
         "spikein_scale_factor",
         "ms_coeff",
         "bigwig_path",
+        "input_bam",
+        "input_bai",
     ]
     rows = []
     for row in samples_rows:
@@ -68,6 +70,8 @@ def write_samples(samples_rows, ms_coeffs, normalisation_mode, out_path):
         final_bai = row.get("final_bai") or "NA"
         spikein = row.get("spikein_scale_factor") or "NA"
         bigwig = row.get("bigwig_path") or "NA"
+        input_bam = row.get("input_bam") or "NA"
+        input_bai = row.get("input_bai") or "NA"
         ms_coeff = ms_coeffs.get(sample_id, "NA")
         rows.append({
             "sample_id": sample_id,
@@ -80,6 +84,8 @@ def write_samples(samples_rows, ms_coeffs, normalisation_mode, out_path):
             "spikein_scale_factor": spikein,
             "ms_coeff": ms_coeff,
             "bigwig_path": bigwig,
+            "input_bam": input_bam,
+            "input_bai": input_bai,
         })
 
     rows.sort(key=lambda r: (r["group"], "NA", r["condition"], sort_key(r["replicate"]), r["sample_id"]))

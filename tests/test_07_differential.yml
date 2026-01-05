@@ -5,6 +5,16 @@
     - test_differential_missing_contrast
   exit_code: 1
 
+- name: test_span_diff_missing_jar_integrated
+  command: nextflow run main.nf -profile docker,test --run_span_diff --differential_contrast Treatment,Control --differential_min_replicates 1 --input tests/assets/samplesheet_condition.csv --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq -c tests/config/nextflow.config
+  tags:
+    - test_differential
+    - test_span_diff_missing_jar_integrated
+  exit_code: 1
+  stderr:
+    contains:
+      - "omnipeaks_jar"
+
 - name: test_differential_manifests_only
   command: nextflow run main.nf -profile docker,test --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --run_diffbind --differential_contrast Treatment,Control --differential_min_replicates 1 --differential_publish_manifest_only --input tests/assets/samplesheet_condition.csv -c tests/config/nextflow.config
   tags:
@@ -58,6 +68,17 @@
         - "insufficient_replicates"
         - "SKIP"
 
+- name: test_differential_summary_preserves_skip
+  command: bash -c "mkdir -p tests/output/summary_override && cat > tests/output/summary_override/design.tsv <<'EOF'\ngroup\tcaller\ttreated_condition\tcontrol_condition\tstatus\treason\nh3k27me3\tNA\tTreatment\tControl\tSKIP\tmanual_skip\nEOF\ncat > tests/output/summary_override/chipbinner.summary.tsv <<'EOF'\ngroup\tcaller\ttreated\tcontrol\tn_bins_tested\tn_fdr_pass\tn_up\tn_down\tn_clusters\tchosen_minPts\tchosen_minSamps\tstatus\treason\tenrichment_status\nh3k27me3\tNA\tTreatment\tControl\t10\t1\t1\t0\t2\t100\t100\tRUN\tok\tNOT_RUN\nEOF\npython3 bin/differential_summary.py --design tests/output/summary_override/design.tsv --summaries tests/output/summary_override/chipbinner.summary.tsv --out tests/output/summary_override/summary.tsv"
+  tags:
+    - test_differential
+    - test_differential_summary
+  files:
+    - path: tests/output/summary_override/summary.tsv
+      contains:
+        - "SKIP"
+        - "manual_skip"
+
 - name: test_differential_manifests_deterministic
   command: bash -c "rm -rf tests/output/manifest_run1 tests/output/manifest_run2 && mkdir -p tests/output/manifest_run1 tests/output/manifest_run2 && python3 bin/differential_manifests.py --samples tests/assets/differential_manifest_input/samples.tsv --peaks tests/assets/differential_manifest_input/peaks.tsv --normalisation-mode NA --outdir tests/output/manifest_run1 && python3 bin/differential_manifests.py --samples tests/assets/differential_manifest_input/samples.tsv --peaks tests/assets/differential_manifest_input/peaks.tsv --normalisation-mode NA --outdir tests/output/manifest_run2 && diff -q tests/output/manifest_run1/differential_manifest.samples.tsv tests/output/manifest_run2/differential_manifest.samples.tsv && diff -q tests/output/manifest_run1/differential_manifest.peaks.tsv tests/output/manifest_run2/differential_manifest.peaks.tsv"
   tags:
@@ -100,6 +121,7 @@
     - path: tests/output/span_auto/span.mode.txt
       contains:
         - "fallback"
+    - path: tests/output/span_auto/span.normalization_factors.tsv
 
 - name: test_annotation_fallback_gtf_only
   command: nextflow run main.nf -profile docker,test -entry DIFFERENTIAL_ONLY --run_span_diff --span_diff_mode native --differential_allow_partial --differential_contrast Treatment,Control --differential_min_replicates 1 --differential_from_run tests/assets/diff_run_small --omnipeaks_jar tests/assets/omnipeaks_stub.jar --gtf tests/assets/minimal.gtf --fasta tests/assets/minimal.fa --outdir results_annotation_gtf -c tests/config/nextflow.config
@@ -111,3 +133,37 @@
       contains:
         - "nearest_feature_id"
         - "nearest_gene_name"
+
+- name: test_chipbinner_stub_outputs
+  command: bash -c "rm -rf results_chipbinner_stub && nextflow run main.nf -profile docker,test -stub-run -entry DIFFERENTIAL_ONLY --run_chipbinner --chipbinner_use_input --differential_contrast Treatment,Control --differential_min_replicates 1 --differential_from_run tests/assets/diff_run_chipbinner_multi --gtf tests/assets/minimal.gtf --fasta tests/assets/minimal.fa --outdir results_chipbinner_stub -c tests/config/nextflow.config && test $(ls results_chipbinner_stub/03_peak_calling/08_differential/00_manifests/chipbinner_windows_cache/windows.*.bed | wc -l) -eq 1"
+  tags:
+    - test_differential
+    - test_chipbinner_outputs
+  files:
+    - path: results_chipbinner_stub/03_peak_calling/08_differential/02_chipbinner/g1/chipbinner.clusters.2cluster.tsv
+    - path: results_chipbinner_stub/03_peak_calling/08_differential/02_chipbinner/g1/chipbinner.clusters.3cluster.tsv
+    - path: results_chipbinner_stub/03_peak_calling/08_differential/02_chipbinner/g1/chipbinner.normalization_factors.tsv
+
+- name: test_chipbinner_use_input_missing_fail
+  command: bash -c "mkdir -p tests/output/chipbinner_missing && cat > tests/output/chipbinner_missing/samples.tsv <<'EOF'\nsample_id\tgroup\tcondition\treplicate\tfinal_bam\tfinal_bai\tbigwig_path\tspikein_scale_factor\tms_coeff\tinput_bam\tinput_bai\ns1\tg1\tTreatment\t1\tNA\tNA\tNA\tNA\tNA\tNA\tNA\ns2\tg1\tControl\t1\tNA\tNA\tNA\tNA\tNA\tNA\tNA\nEOF\ncat > tests/output/chipbinner_missing/chrom.sizes <<'EOF'\nchr1\t1000\nEOF\npython3 bin/chipbinner_run.py --samples tests/output/chipbinner_missing/samples.tsv --group g1 --contrast Treatment,Control --chrom-sizes tests/output/chipbinner_missing/chrom.sizes --bin-size 200 --use-input --outdir tests/output/chipbinner_missing/out"
+  tags:
+    - test_differential
+    - test_chipbinner_use_input
+  exit_code: 1
+  stderr:
+    contains:
+      - "input BAMs are missing"
+
+- name: test_chipbinner_use_input_missing_allow_partial
+  command: bash -c "mkdir -p tests/output/chipbinner_missing_partial && cat > tests/output/chipbinner_missing_partial/samples.tsv <<'EOF'\nsample_id\tgroup\tcondition\treplicate\tfinal_bam\tfinal_bai\tbigwig_path\tspikein_scale_factor\tms_coeff\tinput_bam\tinput_bai\ns1\tg1\tTreatment\t1\tNA\tNA\tNA\tNA\tNA\tNA\tNA\ns2\tg1\tControl\t1\tNA\tNA\tNA\tNA\tNA\tNA\tNA\nEOF\ncat > tests/output/chipbinner_missing_partial/chrom.sizes <<'EOF'\nchr1\t1000\nEOF\npython3 bin/chipbinner_run.py --samples tests/output/chipbinner_missing_partial/samples.tsv --group g1 --contrast Treatment,Control --chrom-sizes tests/output/chipbinner_missing_partial/chrom.sizes --bin-size 200 --use-input --allow-partial --outdir tests/output/chipbinner_missing_partial/out"
+  tags:
+    - test_differential
+    - test_chipbinner_use_input
+  files:
+    - path: tests/output/chipbinner_missing_partial/out/chipbinner.summary.tsv
+      contains:
+        - "SKIP"
+        - "MISSING_INPUT_BAM"
+    - path: tests/output/chipbinner_missing_partial/out/chipbinner.error.txt
+    - path: tests/output/chipbinner_missing_partial/out/chipbinner.bin_counts.tsv
+      should_exist: false

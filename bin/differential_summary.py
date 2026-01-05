@@ -85,7 +85,7 @@ def main():
             group = row.get("group") or ""
             caller = row.get("caller") or (row.get("caller_id") or "NA")
             key = (method, group, caller)
-            base_rows[key] = {
+            summary_row = {
                 "method": method,
                 "group": group,
                 "caller": caller,
@@ -99,6 +99,13 @@ def main():
                 "status": row.get("status") or "RUN",
                 "reason": row.get("reason") or "ok",
             }
+            existing = base_rows.get(key)
+            if existing:
+                existing_status = (existing.get("status") or "").upper()
+                incoming_status = (summary_row.get("status") or "RUN").upper()
+                if existing_status not in ("", "RUN") and incoming_status == "RUN":
+                    continue
+            base_rows[key] = summary_row
 
     header = [
         "method",

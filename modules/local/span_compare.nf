@@ -8,13 +8,13 @@ process SPAN_COMPARE {
         saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
     ]
 
-    conda "conda-forge::openjdk=21.0.2 bioconda::samtools=1.19.2"
+    conda "conda-forge::openjdk=21.0.2"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/samtools:1.19.2--h50ea8bc_0' :
-        'biocontainers/samtools:1.19.2--h50ea8bc_0' }"
+        'docker://eclipse-temurin:21-jre' :
+        'eclipse-temurin:21-jre' }"
 
     input:
-    tuple val(meta), path(treated_bams), path(control_bams)
+    tuple val(meta), path(treated_bam), path(control_bam)
     path chrom_sizes
     path omnipeaks_jar
     val gap
@@ -41,25 +41,9 @@ process SPAN_COMPARE {
     """
     java_cmd=\${JAVA_CMD:-java}
 
-    treated_list=(${treated_bams})
-    control_list=(${control_bams})
-
-    treated_input=${treated_bams}
-    control_input=${control_bams}
-    if [ \${#treated_list[@]} -gt 1 ]; then
-        samtools merge -f treated_pool.bam ${treated_bams}
-        samtools index treated_pool.bam
-        treated_input=treated_pool.bam
-    fi
-    if [ \${#control_list[@]} -gt 1 ]; then
-        samtools merge -f control_pool.bam ${control_bams}
-        samtools index control_pool.bam
-        control_input=control_pool.bam
-    fi
-
     "\$java_cmd" -Xmx${java_heap} -jar ${omnipeaks_jar} compare \
-        -t ${treated_input} \
-        -c ${control_input} \
+        -t ${treated_bam} \
+        -c ${control_bam} \
         --cs ${chrom_sizes} \
         --gap ${gap} \
         ${bin_arg} \
@@ -95,7 +79,6 @@ process SPAN_COMPARE {
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         java: \$(\${java_cmd} -version 2>&1 | head -n 1 | sed -e 's/\"//g')
-        samtools: \$(samtools --version 2>&1 | head -n 1 | sed 's/^.*samtools //; s/Using.*\$//')
     END_VERSIONS
     """
 }

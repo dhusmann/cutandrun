@@ -13,6 +13,7 @@ include { CHIPBINNER_BINS } from '../../modules/local/chipbinner_bins'
 include { CHIPBINNER_COUNTS } from '../../modules/local/chipbinner_counts'
 include { CHIPBINNER_HDBSCAN_GRID } from '../../modules/local/chipbinner_hdbscan_grid'
 include { CHIPBINNER_ROTS } from '../../modules/local/chipbinner_rots'
+include { SAMTOOLS_MERGE_BAMS } from '../../modules/local/samtools_merge_bams'
 include { SPAN_CAPABILITY_PROBE } from '../../modules/local/span_capability_probe'
 include { SPAN_COMPARE } from '../../modules/local/span_compare'
 include { SPAN_FALLBACK_DIFF } from '../../modules/local/span_fallback_diff'
@@ -386,37 +387,56 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         SPAN_CAPABILITY_PROBE(Channel.value(file(params.omnipeaks_jar)))
         ch_versions = ch_versions.mix(SPAN_CAPABILITY_PROBE.out.versions)
 
+        def span_mode = params.span_diff_mode?.toString()?.toLowerCase() ?: 'auto'
+        def span_use_native = span_mode == 'native' || span_mode == 'auto'
+        def span_use_fallback = span_mode == 'fallback' || span_mode == 'auto'
+
         ch_span_caps = SPAN_CAPABILITY_PROBE.out.capabilities
             .map { file -> new JsonSlurper().parse(file) }
         ch_span_has_compare = ch_span_caps.map { it.has_compare ?: false }
 
-        ch_span_groups = ch_valid_groups.map { rec ->
-            def treated_bams = rec.records.findAll { it.condition == treated }.collect { it.bam }
-            def control_bams = rec.records.findAll { it.condition == control }.collect { it.bam }
-            def meta = [id: rec.group, group: rec.group, treated: treated, control: control]
-            [meta, treated_bams, control_bams]
-        }
+        if (span_use_native) {
+            ch_span_merge_inputs = ch_valid_groups.flatMap { rec ->
+                def treated_bams = rec.records.findAll { it.condition == treated }.collect { it.bam }
+                def control_bams = rec.records.findAll { it.condition == control }.collect { it.bam }
+                [
+                    [[group: rec.group, role: 'treated', id: "${rec.group}.treated"], treated_bams],
+                    [[group: rec.group, role: 'control', id: "${rec.group}.control"], control_bams]
+                ]
+            }
 
-        def span_mode = params.span_diff_mode?.toString()?.toLowerCase() ?: 'auto'
+            SAMTOOLS_MERGE_BAMS(ch_span_merge_inputs)
+            ch_versions = ch_versions.mix(SAMTOOLS_MERGE_BAMS.out.versions)
 
-        ch_span_native_groups = Channel.empty()
-        if (span_mode == 'native') {
-            ch_span_native_groups = ch_span_groups
-        } else if (span_mode == 'auto') {
-            ch_span_native_groups = ch_span_groups.combine(ch_span_has_compare)
-                .filter { meta, treated_bams, control_bams, has_compare -> has_compare }
-                .map { meta, treated_bams, control_bams, has_compare -> [meta, treated_bams, control_bams] }
-        }
+            ch_span_merged_treated = SAMTOOLS_MERGE_BAMS.out.merged
+                .filter { meta, bam, bai -> meta.role == 'treated' }
+                .map { meta, bam, bai -> [meta.group, bam] }
 
-        if (span_mode == 'native' || span_mode == 'auto') {
+            ch_span_merged_control = SAMTOOLS_MERGE_BAMS.out.merged
+                .filter { meta, bam, bai -> meta.role == 'control' }
+                .map { meta, bam, bai -> [meta.group, bam] }
+
+            ch_span_compare_inputs = ch_span_merged_treated.join(ch_span_merged_control)
+                .map { group, treated_bam, control_bam ->
+                    def meta = [id: group, group: group, treated: treated, control: control]
+                    [meta, treated_bam, control_bam]
+                }
+
+            ch_span_native_groups = ch_span_compare_inputs
+            if (span_mode == 'auto') {
+                ch_span_native_groups = ch_span_compare_inputs.combine(ch_span_has_compare)
+                    .filter { meta, treated_bam, control_bam, has_compare -> has_compare }
+                    .map { meta, treated_bam, control_bam, has_compare -> [meta, treated_bam, control_bam] }
+            }
+
             SPAN_COMPARE(
                 ch_span_native_groups,
-            ch_chrom_sizes_single,
-            Channel.value(file(params.omnipeaks_jar)),
-            Channel.value(params.span_diff_gap),
-            Channel.value(params.span_diff_bin),
-            Channel.value(params.span_diff_fdr),
-            Channel.value(params.span_diff_java_heap)
+                ch_chrom_sizes_single,
+                Channel.value(file(params.omnipeaks_jar)),
+                Channel.value(params.span_diff_gap),
+                Channel.value(params.span_diff_bin),
+                Channel.value(params.span_diff_fdr),
+                Channel.value(params.span_diff_java_heap)
             )
             ch_versions = ch_versions.mix(SPAN_COMPARE.out.versions)
             ch_summary_files = ch_summary_files.mix(SPAN_COMPARE.out.summary.map { meta, file -> file })
@@ -445,7 +465,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 .map { rec, has_compare -> rec }
         }
 
-        if (span_mode == 'fallback' || span_mode == 'auto') {
+        if (span_use_fallback) {
             def span_callers = callers.findAll { it.startsWith('span_') }
             if (!span_callers) {
                 ch_skipped_records = ch_skipped_records.mix(

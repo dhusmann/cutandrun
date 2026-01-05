@@ -8,7 +8,7 @@ process SPAN_CAPABILITY_PROBE {
         saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
     ]
 
-    conda "conda-forge::openjdk=21.0.2 conda-forge::python=3.11"
+    conda "conda-forge::openjdk=21.0.2"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'docker://eclipse-temurin:21-jre' :
         'eclipse-temurin:21-jre' }"
@@ -26,31 +26,40 @@ process SPAN_CAPABILITY_PROBE {
     script:
     """\
     java -jar ${omnipeaks_jar} --help > omnipeaks_help.txt
-    python - <<'PY'
-    import json
-    import re
+    commands=\$(awk '
+        {
+            line=\$0
+            sub(/^[ \\t]+/, "", line)
+            if (line == "") next
+            if (match(line, /^([A-Za-z][A-Za-z0-9_-]*)[ \\t]+/, m)) {
+                cmd=m[1]
+                lc=tolower(cmd)
+                if (lc != "usage" && lc != "options" && lc != "commands") print cmd
+            }
+        }' omnipeaks_help.txt | sort -u)
 
-    commands = set()
-    with open('omnipeaks_help.txt') as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
-                continue
-            m = re.match(r'^(?:[A-Z]+)?\s*([a-zA-Z][\w-]+)\b', line)
-            if m:
-                cmd = m.group(1)
-                if cmd not in ('usage', 'options'):
-                    commands.add(cmd)
-    commands = sorted(commands)
-    has_compare = any(cmd in ('compare', 'diff', 'differential') for cmd in commands)
-    out = {
-        "commands": commands,
-        "has_compare": has_compare,
+    has_compare=false
+    for cmd in \${commands}; do
+        lc=\$(printf '%s' "\${cmd}" | tr '[:upper:]' '[:lower:]')
+        if [ "\${lc}" = "compare" ] || [ "\${lc}" = "diff" ] || [ "\${lc}" = "differential" ]; then
+            has_compare=true
+            break
+        fi
+    done
+
+    if [ -n "\${commands}" ]; then
+        commands_json=\$(printf '%s\n' "\${commands}" | awk 'BEGIN{first=1} {gsub(/\"/,"\\\\\""); if (!first) printf ", "; printf "\"%s\"", \$0; first=0} END{print ""}')
+        commands_json="[ \${commands_json} ]"
+    else
+        commands_json="[]"
+    fi
+
+    cat <<-END_JSON > omnipeaks_capabilities.json
+    {
+      "commands": \${commands_json},
+      "has_compare": \${has_compare}
     }
-    with open('omnipeaks_capabilities.json', 'w') as handle:
-        json.dump(out, handle, indent=2)
-        handle.write("\\n")
-    PY
+    END_JSON
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

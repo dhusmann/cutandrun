@@ -86,8 +86,8 @@ class WorkflowCutandrun {
             Nextflow.error "Invalid --igg_scale_scope value '${params.igg_scale_scope}'. Valid options: legacy, group_condition, sample."
         }
 
-        if (params.consensus_grouping && !['group','group_condition'].contains(params.consensus_grouping)) {
-            Nextflow.error "Invalid --consensus_grouping value '${params.consensus_grouping}'. Valid options: group, group_condition."
+        if (params.consensus_grouping && !['group','group_condition','all'].contains(params.consensus_grouping)) {
+            Nextflow.error "Invalid --consensus_grouping value '${params.consensus_grouping}'. Valid options: group, group_condition, all."
         }
 
         if (params.peakcaller_preset && !['standard','extended'].contains(params.peakcaller_preset.toLowerCase())) {

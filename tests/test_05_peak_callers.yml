@@ -100,7 +100,7 @@
     - path: results/03_peak_calling/01_pooled_controls/igg_ctrl_Treatment.bam.bai
     - path: results/03_peak_calling/04_called_peaks/epic2_200bp/h3k27me3_Control_rep1_epic2_200bp.peaks
 
-- name: test_peak_callers_epic2_missing_control_skip
+- name: test_peak_callers_epic2_missing_control_fallback
   command: nextflow run main.nf -profile docker,test --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --peakcaller epic2_200bp --epic2_genome hg38 --allow_cross_condition_controls --input tests/assets/samplesheet_condition_missing_control.csv -c tests/config/nextflow.config
   tags:
     - test_peak_callers
@@ -111,9 +111,27 @@
         - "h3k27me3_Treatment_rep1"
         - "epic2_200bp"
         - "fallback_other_condition"
-        - "skipped"
-        - "no_exact_condition_match"
+        - "used"
+        - "condition_fallback"
     - path: results/03_peak_calling/04_called_peaks/epic2_200bp/h3k27me3_Control_rep1_epic2_200bp.peaks
+    - path: results/03_peak_calling/04_called_peaks/epic2_200bp/h3k27me3_Treatment_rep1_epic2_200bp.peaks
+      should_exist: true
+
+- name: test_peak_callers_epic2_no_controls_skip
+  command: nextflow run main.nf -profile docker,test --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --peakcaller epic2_200bp --epic2_genome hg38 --allow_cross_condition_controls --input tests/assets/samplesheet_condition_no_controls.csv -c tests/config/nextflow.config
+  tags:
+    - test_peak_callers
+    - test_peak_callers_epic2
+  files:
+    - path: results/03_peak_calling/07_qc_tables/control_pooling_fallbacks.tsv
+      contains:
+        - "h3k27me3_Control_rep1"
+        - "epic2_200bp"
+        - "missing_control"
+        - "skipped"
+        - "no_control_for_group"
+    - path: results/03_peak_calling/04_called_peaks/epic2_200bp/h3k27me3_Control_rep1_epic2_200bp.peaks
+      should_exist: false
     - path: results/03_peak_calling/04_called_peaks/epic2_200bp/h3k27me3_Treatment_rep1_epic2_200bp.peaks
       should_exist: false
 

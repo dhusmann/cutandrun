@@ -111,22 +111,6 @@ workflow PEAK_CALLING_EXTENDED {
     ch_bedgraph_target_cc = add_control_condition(bedgraph_target, bedgraph_control)
     ch_bam_target_cc = add_control_condition(bam_target, bam_control)
 
-    if (params.use_control) {
-        ch_control_fallbacks = ch_bam_target_cc
-            .filter { meta, bam -> meta.control_condition && meta.control_condition != meta.condition }
-            .map { meta, bam ->
-                [
-                    sample_id: meta.sample_id ?: meta.id,
-                    group: meta.group,
-                    condition: meta.condition,
-                    control_group: meta.control_group,
-                    control_condition: meta.control_condition,
-                    caller: 'pooled_control',
-                    reason: 'condition_mismatch'
-                ]
-            }
-    }
-
     /*
      * SEACR
      */
@@ -276,16 +260,40 @@ workflow PEAK_CALLING_EXTENDED {
             .map { meta, bam, pooled_map ->
                 def entries = pooled_map.get(meta.control_group, [])
                 if (!entries) {
-                    return [meta, bam, null, null, 'missing_control', 'skipped', 'no_control_for_group', null]
+                    return [meta, bam, null, '', 'missing_control', 'skipped', 'no_control_for_group', null]
                 }
-                def exact = entries.find { it[0] == meta.control_condition }
-                if (exact) {
-                    def used_condition = exact[0]
-                    def control_bam = exact[1]
-                    return [meta, bam, control_bam, used_condition, 'exact_match', 'used', 'exact_condition', control_bam]
+                def desired_condition = meta.control_condition ?: meta.condition
+                def selected_entry = entries.find { it[0] == desired_condition }
+                def used_condition = null
+                def control_bam = null
+                def status = null
+                def reason = null
+                if (selected_entry) {
+                    used_condition = selected_entry[0]
+                    control_bam = selected_entry[1]
+                } else {
+                    def na_entry = entries.find { it[0] == 'NA' }
+                    if (na_entry) {
+                        used_condition = na_entry[0]
+                        control_bam = na_entry[1]
+                    } else {
+                        def fallback = entries.sort { it[0] }[0]
+                        used_condition = fallback[0]
+                        control_bam = fallback[1]
+                    }
                 }
-                def fallback_condition = entries[0][0]
-                return [meta, bam, null, fallback_condition, 'fallback_other_condition', 'skipped', 'no_exact_condition_match', null]
+                def exact_match = (used_condition == meta.condition)
+                if (exact_match) {
+                    status = 'exact_match'
+                    reason = 'exact_condition'
+                } else if (used_condition == 'NA') {
+                    status = 'fallback_other_condition'
+                    reason = 'legacy_na_control'
+                } else {
+                    status = 'fallback_other_condition'
+                    reason = 'condition_fallback'
+                }
+                return [meta, bam, control_bam, used_condition, status, 'used', reason, control_bam]
             }
     }
 

@@ -89,6 +89,7 @@ def check_samplesheet(file_in, file_out, use_control, allow_cross_condition_cont
     sample_run_dict = {}
     control_condition_map = {}
     missing_control_errors = []
+    missing_control_warnings = []
     cross_condition_warnings = []
     legacy_na_warnings = []
 
@@ -247,6 +248,12 @@ def check_samplesheet(file_in, file_out, use_control, allow_cross_condition_cont
     ## Check control group exists
     for ctrl in control_names_list:
         if ctrl != "" and ctrl not in sample_names_list:
+            if allow_cross_condition_controls:
+                print(
+                    "WARNING: Control entry '{}' does not match any group entry; proceeding because "
+                    "--allow_cross_condition_controls was set. Control-required callers will be skipped.".format(ctrl)
+                )
+                continue
             print_error(
                 "Each control entry must match at least one group entry! Unmatched control entry: {}.".format(ctrl)
             )
@@ -298,16 +305,18 @@ def check_samplesheet(file_in, file_out, use_control, allow_cross_condition_cont
                             ctrl_conditions = control_condition_map.get(info[3], set())
                             sample_id = "{}_{}_rep{}".format(info[0], info[1], info[2])
                             if not ctrl_conditions:
-                                missing_control_errors.append(
-                                    {
-                                        "sample_id": sample_id,
-                                        "group": info[0],
-                                        "condition": info[1],
-                                        "replicate": info[2],
-                                        "control_group": info[3],
-                                        "control_conditions": "NONE",
-                                    }
-                                )
+                                entry = {
+                                    "sample_id": sample_id,
+                                    "group": info[0],
+                                    "condition": info[1],
+                                    "replicate": info[2],
+                                    "control_group": info[3],
+                                    "control_conditions": "NONE",
+                                }
+                                if allow_cross_condition_controls:
+                                    missing_control_warnings.append(entry)
+                                    continue
+                                missing_control_errors.append(entry)
                                 continue
                             if info[1] in ctrl_conditions:
                                 continue
@@ -360,6 +369,17 @@ def check_samplesheet(file_in, file_out, use_control, allow_cross_condition_cont
             )
             sys.exit(1)
 
+        if missing_control_warnings:
+            print(
+                "WARNING: No control rows exist for one or more control groups; proceeding because "
+                "--allow_cross_condition_controls was set. Control-required callers will be skipped for these samples."
+            )
+            for entry in missing_control_warnings:
+                print(
+                    " - sample_id: {sample_id} | group: {group} | condition: {condition} | replicate: {replicate} | "
+                    "control_group: {control_group} | control_conditions_found: {control_conditions}".format(**entry)
+                )
+
         if legacy_na_warnings:
             print("WARNING: Control rows with condition=NA used for targets with explicit conditions (legacy mode).")
             for entry in legacy_na_warnings:
@@ -409,8 +429,8 @@ def check_samplesheet(file_in, file_out, use_control, allow_cross_condition_cont
                             # print_error("Control group must match within technical replicates", tech_rep[2])
 
                     ## Write to file
-                    for idx, sample_info in enumerate(sample_run_dict[sample_key][replicate]):
-                        sample_id = "{}_{}_rep{}_T{}".format(sample_info[0], sample_info[1], replicate, idx + 1)
+                    for sample_info in sample_run_dict[sample_key][replicate]:
+                        sample_id = "{}_{}_rep{}".format(sample_info[0], sample_info[1], replicate)
                         fout.write(",".join([sample_id] + sample_info[:7] + [sample_info[-1]]) + "\n")
 
 

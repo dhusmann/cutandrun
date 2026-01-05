@@ -3,4 +3,4 @@
   tags:
     - verify_output_save_trimmed
   files:
-    - path: results/01_prealign/trimgalore/h3k27me3_NA_rep1_T1_1.trimmed.fastq.gz
+    - path: results/01_prealign/trimgalore/h3k27me3_NA_rep1_1.trimmed.fastq.gz

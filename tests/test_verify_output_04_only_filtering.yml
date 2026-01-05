@@ -4,12 +4,12 @@
     - verify_output_only_filtering
     - verify_output_only_filtering_without_mitochondrial_reads
   files:
-    - path: results/02_alignment/bowtie2/target/markdup/h3k27me3_NA_rep1_T1.target.markdup.sorted.bam
-    - path: results/02_alignment/bowtie2/target/markdup/h3k27me3_NA_rep1_T1.target.markdup.sorted.bam.bai
-    - path: results/02_alignment/bowtie2/target/markdup/h3k27me3_NA_rep1_T1.flagstat
-    - path: results/02_alignment/bowtie2/target/markdup/igg_ctrl_NA_rep1_T1.target.markdup.sorted.bam
-    - path: results/02_alignment/bowtie2/target/markdup/igg_ctrl_NA_rep1_T1.target.markdup.sorted.bam.bai
-    - path: results/02_alignment/bowtie2/target/markdup/igg_ctrl_NA_rep1_T1.flagstat
+    - path: results/02_alignment/bowtie2/target/markdup/h3k27me3_NA_rep1.target.markdup.sorted.bam
+    - path: results/02_alignment/bowtie2/target/markdup/h3k27me3_NA_rep1.target.markdup.sorted.bam.bai
+    - path: results/02_alignment/bowtie2/target/markdup/h3k27me3_NA_rep1.flagstat
+    - path: results/02_alignment/bowtie2/target/markdup/igg_ctrl_NA_rep1.target.markdup.sorted.bam
+    - path: results/02_alignment/bowtie2/target/markdup/igg_ctrl_NA_rep1.target.markdup.sorted.bam.bai
+    - path: results/02_alignment/bowtie2/target/markdup/igg_ctrl_NA_rep1.flagstat
 
 - name: test_output_only_filtering_with_mitochondrial_reads
   command: nextflow run main.nf -profile docker,test --only_filtering --skip_fastqc --skip_removeduplicates --skip_preseq --remove_mitochondrial_reads false -c tests/config/nextflow.config

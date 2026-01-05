@@ -45,7 +45,7 @@ class WorkflowMain {
         NfcoreTemplate.awsBatch(workflow, params)
 
         // Check input has been provided unless running differential-only
-        def differential_only = isDifferentialOnly(workflow)
+        def differential_only = isDifferentialOnly(workflow, params)
         if (!params.input && !(differential_only && params.differential_from_run)) {
             Nextflow.error("Please provide an input samplesheet to the pipeline e.g. '--input samplesheet.csv'")
         }
@@ -54,9 +54,12 @@ class WorkflowMain {
     //
     // Detect whether the workflow is running the differential-only entrypoint
     //
-    public static boolean isDifferentialOnly(workflow) {
+    public static boolean isDifferentialOnly(workflow, params = null) {
         def entry = getWorkflowEntryName(workflow)
-        return entry?.toString()?.toUpperCase() == 'DIFFERENTIAL_ONLY'
+        if (entry) {
+            return entry?.toString()?.toUpperCase() == 'DIFFERENTIAL_ONLY'
+        }
+        return params?.differential_from_run ? true : false
     }
 
     //

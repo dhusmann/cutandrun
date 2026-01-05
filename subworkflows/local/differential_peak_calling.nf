@@ -362,7 +362,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         )
         ch_versions = ch_versions.mix(CHIPBINNER_ROTS.out.versions)
         ch_summary_files = ch_summary_files.mix(CHIPBINNER_ROTS.out.summary.map { group, file -> file })
-        ch_chipbinner_significant = CHIPBINNER_ROTS.out.up
+        ch_chipbinner_significant = CHIPBINNER_ROTS.out.significant
 
         if (params.differential_annotate) {
             ch_chipbinner_annotate = CHIPBINNER_ROTS.out.results.map { group, file ->

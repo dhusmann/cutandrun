@@ -34,6 +34,7 @@ process CHIPBINNER_ROTS {
 
     output:
     tuple val(group), path("chipbinner.differential.tsv")     , emit: results
+    tuple val(group), path("chipbinner.significant.bed")      , emit: significant
     tuple val(group), path("chipbinner.significant_up.bed")   , emit: up
     tuple val(group), path("chipbinner.significant_down.bed") , emit: down
     tuple val(group), path("chipbinner.summary.tsv")          , emit: summary
@@ -68,6 +69,8 @@ process CHIPBINNER_ROTS {
         --lfc ${lfc} \
         --bootstrap ${bootstrap} \
         --k_value ${k_value}
+
+    cat chipbinner.significant_up.bed chipbinner.significant_down.bed | awk 'NF' | sort -k1,1 -k2,2n | uniq > chipbinner.significant.bed
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

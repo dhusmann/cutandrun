@@ -8,8 +8,10 @@ process CHIPBINNER_HDBSCAN_GRID {
         saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
     ]
 
-    conda "conda-forge::python=3.11 conda-forge::numpy conda-forge::pandas conda-forge::scikit-learn conda-forge::hdbscan"
-    container "quay.io/biocontainers/python:3.8.3"
+    conda "conda-forge::python=3.11 conda-forge::numpy conda-forge::hdbscan"
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://depot.galaxyproject.org/singularity/hdbscan:0.8.33--pyhdfd78af_0' :
+        'biocontainers/hdbscan:0.8.33--pyhdfd78af_0' }"
 
     input:
     path matrix
@@ -27,22 +29,6 @@ process CHIPBINNER_HDBSCAN_GRID {
 
     script:
     """\
-    python - <<'PY'
-    import importlib.util
-    import subprocess
-    import sys
-
-    required = {
-        "numpy": "numpy",
-        "pandas": "pandas",
-        "sklearn": "scikit-learn",
-        "hdbscan": "hdbscan",
-    }
-    missing = [pkg for mod, pkg in required.items() if importlib.util.find_spec(mod) is None]
-    if missing:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "--no-cache-dir"] + missing)
-    PY
-
     python ${projectDir}/bin/hdbscan_grid.py \
         --matrix ${matrix} \
         --min_cluster_size ${min_cluster_size} \

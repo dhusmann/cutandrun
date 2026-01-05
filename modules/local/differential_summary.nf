@@ -27,7 +27,7 @@ process DIFFERENTIAL_SUMMARY_MERGE {
 
     script:
     """\
-    python - <<'PY'
+    python - ${summary_files} <<'PY'
     import csv
     import json
     import sys
@@ -80,7 +80,6 @@ process DIFFERENTIAL_SUMMARY_MERGE {
                 'details': row.get('details', '')
             })
     PY
-    ${summary_files}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

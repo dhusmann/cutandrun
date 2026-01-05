@@ -106,6 +106,14 @@ def main():
         output_path.write_text(input_path.read_text())
         return
 
+    features_has_name = False
+    with features_bed.open() as handle:
+        for line in handle:
+            if not line.strip() or line.startswith("#"):
+                continue
+            features_has_name = len(line.rstrip().split("\t")) >= 4
+            break
+
     regions_bed = Path("regions.bed")
     with input_path.open() as handle, regions_bed.open("w") as out_handle:
         reader = csv.DictReader(handle, delimiter='\t')
@@ -129,7 +137,9 @@ def main():
             if len(fields) < 5:
                 continue
             row_id = int(fields[3])
-            feature_id = fields[7] if len(fields) > 7 else "NA"
+            feature_id = "NA"
+            if features_has_name and len(fields) > 7:
+                feature_id = fields[7]
             distance = fields[-1]
             annotations[row_id] = (feature_id, distance)
 

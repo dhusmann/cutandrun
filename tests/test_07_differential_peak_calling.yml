@@ -15,6 +15,22 @@
     - path: results/03_peak_calling/06_differential/00_manifests/differential_manifest.peaks.tsv
     - path: results/03_peak_calling/06_differential/01_diffbind/00_samplesheets/seacr/h3k27me3.diffbind.csv
 
+- name: test_differential_chipbinner
+  command: nextflow run main.nf -profile docker,test --run_chipbinner --differential_contrast "Treatment,Control" --differential_min_replicates 1 --input tests/assets/samplesheet_condition.csv --skip_fastqc --skip_removeduplicates --skip_preseq --skip_multiqc -c tests/config/differential.config
+  tags:
+    - test_differential
+    - test_differential_chipbinner
+  files:
+    - path: results/03_peak_calling/06_differential/02_chipbinner/h3k27me3/clustering/chipbinner.hdbscan_grid_summary.tsv
+    - path: results/03_peak_calling/06_differential/02_chipbinner/h3k27me3/clustering/chipbinner.clusters.best.tsv
+    - path: results/03_peak_calling/06_differential/02_chipbinner/h3k27me3/clustering/chipbinner.clusters.2clusters.tsv
+    - path: results/03_peak_calling/06_differential/02_chipbinner/h3k27me3/clustering/chipbinner.clusters.3clusters.tsv
+    - path: results/03_peak_calling/06_differential/02_chipbinner/h3k27me3/differential/chipbinner.differential.tsv
+    - path: results/03_peak_calling/06_differential/02_chipbinner/h3k27me3/bed/chipbinner.control_enriched.bed
+    - path: results/03_peak_calling/06_differential/02_chipbinner/h3k27me3/bed/chipbinner.treated_enriched.bed
+    - path: results/03_peak_calling/06_differential/02_chipbinner/h3k27me3/bed/chipbinner.stable.bed
+    - path: results/03_peak_calling/06_differential/02_chipbinner/h3k27me3/chipbinner.summary.tsv
+
 - name: test_differential_only_skipped_invalid
   command: nextflow run main.nf -entry DIFFERENTIAL_ONLY -profile docker,test --run_diffbind --differential_contrast "Treatment,Control" --differential_from_run tests/assets/differential_mock --skip_multiqc -c tests/config/differential.config
   tags:

@@ -14,6 +14,7 @@ def main():
     parser = argparse.ArgumentParser(description="Build differential summary table")
     parser.add_argument("--design", required=True)
     parser.add_argument("--summaries", nargs="*", default=[])
+    parser.add_argument("--manifest-only", action="store_true")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
 
@@ -27,6 +28,9 @@ def main():
         control = row.get("control_condition") or ""
         status = row.get("status") or ""
         reason = row.get("reason") or ""
+        if args.manifest_only and status == "RUN":
+            status = "SKIPPED"
+            reason = "manifest_only"
 
         if caller != "NA":
             key = ("diffbind", group, caller)

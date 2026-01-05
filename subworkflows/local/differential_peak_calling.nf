@@ -406,6 +406,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         DIFFERENTIAL_SUMMARY (
             DIFFERENTIAL_DESIGN.out.design,
             ch_summary_files.collect().map { it + summary_stub }.ifEmpty([summary_stub]),
+            params.differential_publish_manifest_only,
             file("$projectDir/assets/multiqc/differential_summary_header.txt"),
             file("$projectDir/assets/multiqc/differential_design_header.txt")
         )

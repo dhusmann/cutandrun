@@ -7,6 +7,7 @@ process DIFFERENTIAL_SUMMARY {
     input:
     path design_manifest
     path summary_files
+    val manifest_only
     path summary_header
     path design_header
 
@@ -20,10 +21,12 @@ process DIFFERENTIAL_SUMMARY {
 
     script:
     def summaries_arg = summary_files instanceof List ? summary_files.join(' ') : summary_files
+    def manifest_only_flag = manifest_only ? '--manifest-only' : ''
     """
     differential_summary.py \
         --design ${design_manifest} \
         --summaries ${summaries_arg} \
+        ${manifest_only_flag} \
         --out differential_summary.tsv
 
     cat ${summary_header} differential_summary.tsv > differential_summary_mqc.tsv

@@ -1,0 +1,27 @@
+- name: test_differential_missing_contrast
+  command: nextflow run main.nf -profile docker,test --run_diffbind --skip_fastqc --skip_removeduplicates --skip_preseq --skip_multiqc -c tests/config/nextflow.config
+  tags:
+    - test_differential
+    - test_differential_missing_contrast
+  exit_code: 1
+
+- name: test_differential_manifests_samplesheet
+  command: nextflow run main.nf -profile docker,test --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_preseq --skip_multiqc --run_diffbind --differential_contrast "Treatment,Control" --differential_min_replicates 1 --input tests/assets/samplesheet_condition.csv -c tests/config/differential.config
+  tags:
+    - test_differential
+    - test_differential_manifests
+  files:
+    - path: results/03_peak_calling/06_differential/00_manifests/differential_manifest.samples.tsv
+    - path: results/03_peak_calling/06_differential/00_manifests/differential_manifest.peaks.tsv
+    - path: results/03_peak_calling/06_differential/01_diffbind/00_samplesheets/seacr/h3k27me3.diffbind.csv
+
+- name: test_differential_only_skipped_invalid
+  command: nextflow run main.nf -entry DIFFERENTIAL_ONLY -profile docker,test --run_diffbind --differential_contrast "Treatment,Control" --differential_from_run tests/assets/differential_mock --skip_multiqc -c tests/config/differential.config
+  tags:
+    - test_differential
+    - test_differential_only
+  files:
+    - path: results/03_peak_calling/06_differential/multiqc/differential.skipped.tsv
+      contains:
+        - "treated_replicates_lt_2"
+        - "control_replicates_lt_2"

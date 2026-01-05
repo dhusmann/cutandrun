@@ -146,6 +146,7 @@ include { DEEPTOOLS_QC                                     } from "../subworkflo
 include { PEAK_QC                                          } from "../subworkflows/local/peak_qc"
 include { SAMTOOLS_VIEW_SORT_STATS as FILTER_READS         } from "../subworkflows/local/samtools_view_sort_stats"
 include { DEDUPLICATE_LINEAR                               } from "../subworkflows/local/deduplicate_linear"
+include { DIFFERENTIAL_PEAK_CALLING                        } from "../subworkflows/local/differential_peak_calling"
 
 /*
 ========================================================================================
@@ -187,6 +188,9 @@ workflow CUTANDRUN {
 
     // Init
     ch_software_versions = Channel.empty()
+    if (params.run_peak_calling && (params.run_diffbind || params.run_chipbinner || params.run_span_diff) && !params.differential_contrast) {
+        exit 1, "Differential analysis requested but --differential_contrast was not provided (expected \"TREATED,CONTROL\")."
+    }
 
     /*
      * SUBWORKFLOW: Uncompress and prepare reference genome files
@@ -450,6 +454,9 @@ workflow CUTANDRUN {
 
     ch_bedgraph               = Channel.empty()
     ch_bigwig                 = Channel.empty()
+    ch_spikein_scale_factors  = Channel.empty()
+    ch_bam_target             = Channel.empty()
+    ch_bam_control            = Channel.empty()
     ch_peaks_all              = Channel.empty()
     ch_peaks_primary          = Channel.empty()
     ch_peaks_secondary        = Channel.empty()
@@ -478,6 +485,7 @@ workflow CUTANDRUN {
         )
         ch_bedgraph          = PREPARE_PEAKCALLING.out.bedgraph
         ch_bigwig            = PREPARE_PEAKCALLING.out.bigwig
+        ch_spikein_scale_factors = PREPARE_PEAKCALLING.out.spikein_scale_factors
         ch_software_versions = ch_software_versions.mix(PREPARE_PEAKCALLING.out.versions)
 
         /*
@@ -654,6 +662,46 @@ workflow CUTANDRUN {
         ch_software_versions = ch_software_versions.mix(CONTROL_POOLING_FALLBACKS_REPORT.out.versions)
     }
 
+    /*
+    * CHANNEL: Filter bais for target only
+    */
+    ch_samtools_bai.filter { it -> it[0].is_control == false }
+    .set { ch_bai_target }
+    //ch_bai_target | view
+
+    /*
+    * CHANNEL: Combine bam and bai files on id
+    */
+    ch_bam_target.map { row -> [row[0].id, row ].flatten()}
+    .join ( ch_bai_target.map { row -> [row[0].id, row ].flatten()} )
+    .map { row -> [row[1], row[2], row[4]] }
+    .set { ch_bam_bai }
+        // EXAMPLE CHANNEL STRUCT: [[META], BAM, BAI]
+    //ch_bam_bai | view
+
+    ch_differential_summary = Channel.empty()
+    ch_differential_skipped = Channel.empty()
+    ch_differential_versions = Channel.empty()
+    if (params.run_peak_calling && (params.run_diffbind || params.run_chipbinner || params.run_span_diff)) {
+        DIFFERENTIAL_PEAK_CALLING (
+            ch_bam_bai,
+            ch_peaks_all,
+            ch_bigwig,
+            ch_spikein_scale_factors,
+            PREPARE_GENOME.out.chrom_sizes.collect(),
+            callers
+        )
+        ch_differential_summary = DIFFERENTIAL_PEAK_CALLING.out.summary
+        ch_differential_skipped = DIFFERENTIAL_PEAK_CALLING.out.skipped
+        ch_differential_versions = DIFFERENTIAL_PEAK_CALLING.out.versions
+        ch_software_versions = ch_software_versions.mix(ch_differential_versions)
+        if (!params.run_multiqc) {
+            ch_differential_summary.subscribe { }
+            ch_differential_skipped.subscribe { }
+            ch_differential_versions.subscribe { }
+        }
+    }
+
     ch_dt_corrmatrix              = Channel.empty()
     ch_dt_pcadata                 = Channel.empty()
     ch_dt_fpmatrix                = Channel.empty()
@@ -791,13 +839,6 @@ workflow CUTANDRUN {
             ch_software_versions = ch_software_versions.mix(DEEPTOOLS_QC.out.versions)
         }
 
-        /*
-        * CHANNEL: Filter bais for target only
-        */
-        ch_samtools_bai.filter { it -> it[0].is_control == false }
-        .set { ch_bai_target }
-        //ch_bai_target | view
-
         if (params.run_peak_qc && params.run_peak_calling) {
             /*
             * CHANNEL: Filter flagstat for target only
@@ -849,17 +890,6 @@ workflow CUTANDRUN {
             ch_software_versions           = ch_software_versions.mix(PEAK_QC.out.versions)
         }
         //ch_peakqc_reprod_perc_mqc | view
-
-        /*
-        * CHANNEL: Combine bam and bai files on id
-        */
-
-        ch_bam_target.map { row -> [row[0].id, row ].flatten()}
-        .join ( ch_bai_target.map { row -> [row[0].id, row ].flatten()} )
-        .map { row -> [row[1], row[2], row[4]] }
-        .set { ch_bam_bai }
-        // EXAMPLE CHANNEL STRUCT: [[META], BAM, BAI]
-        //ch_bam_bai | view
 
         /*
         * MODULE: Calculate fragment lengths
@@ -936,7 +966,9 @@ workflow CUTANDRUN {
             ch_peakqc_count_consensus_mqc.collect{it[1]}.ifEmpty([]),
             ch_peakqc_reprod_perc_mqc.collect().ifEmpty([]),
             ch_frag_len_hist_mqc.collect().ifEmpty([]),
-            ch_linear_duplication_mqc.collect{it[1]}.ifEmpty([])
+            ch_linear_duplication_mqc.collect{it[1]}.ifEmpty([]),
+            ch_differential_summary.collect().ifEmpty([]),
+            ch_differential_skipped.collect().ifEmpty([])
         )
         multiqc_report = MULTIQC.out.report.toList()
     }

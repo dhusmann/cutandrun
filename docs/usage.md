@@ -167,6 +167,58 @@ If control samples are provided in the sample sheet, they will be used to normal
 
 After peak calling, consensus peaks are calculated by merging peaks within the same grouping key. Use `--consensus_grouping` to choose `group` or `group_condition`. By default, if the samplesheet includes a `condition` column, grouping uses `group_condition`; otherwise it falls back to `group`. The number of replicates required for a valid peak can be changed using `replicate_threshold`. To call consensus peaks across all samples, set `--consensus_peak_mode all`.
 
+### Differential Peak Calling
+
+Differential peak calling is an optional analysis layer that can be enabled after peak calling. It supports three complementary methods:
+
+- **DiffBind** (per caller × group)
+- **ChIPBinner** (per group)
+- **SPAN/OmniPeaks differential** (per group)
+
+To enable differential analysis, set one or more `--run_*` toggles and provide an explicit contrast:
+
+```
+--run_diffbind \
+--differential_contrast "Treated,Control"
+```
+
+Key parameters:
+
+- `--run_diffbind`, `--run_chipbinner`, `--run_span_diff`
+- `--differential_contrast "TREATED,CONTROL"` (required when any method is enabled)
+- `--differential_min_replicates` (default: 2)
+- `--differential_strict` (fail on invalid comparisons instead of skipping)
+- `--differential_use_spikein` (auto|true|false)
+- `--differential_annotate` (annotate differential regions)
+- `--differential_cross_compare` (cross-method/caller overlap tables)
+- `--differential_run_multiqc` (generate summary tables for MultiQC)
+
+DiffBind options:
+
+- `--diffbind_fdr`, `--diffbind_lfc`, `--diffbind_backend`, `--diffbind_min_overlap`, `--diffbind_summits`
+- `--diffbind_extra_params` (JSON/YAML overrides for advanced DiffBind settings)
+
+ChIPBinner options:
+
+- `--chipbinner_bin_size`, `--chipbinner_windows_dir`, `--chipbinner_blacklist`
+- `--chipbinner_pseudocount`, `--chipbinner_fdr`, `--chipbinner_lfc`
+- `--chipbinner_hdbscan_grid_min_cluster_size`, `--chipbinner_hdbscan_grid_min_samples`
+- `--chipbinner_bootstrap`, `--chipbinner_k_value`
+
+SPAN differential options:
+
+- `--omnipeaks_jar` (required for SPAN differential)
+- `--span_diff_mode` (auto|native|fallback), `--span_diff_fdr`, `--span_diff_gap`, `--span_diff_bin`
+- `--span_diff_java_heap`
+
+Posthoc differential-only mode:
+
+```
+nextflow run . -entry DIFFERENTIAL_ONLY \
+  --differential_from_run <existing_outdir> \
+  --differential_contrast "Treated,Control"
+```
+
 ### Reproducibility
 
 It is a good idea to specify a pipeline version when running the pipeline on your data. This ensures that a specific version of the pipeline code and software are used when you run your pipeline. If you keep using the same tag, you'll be running the same version of the pipeline, even if there have been changes to the code since.

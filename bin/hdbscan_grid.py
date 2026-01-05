@@ -81,8 +81,8 @@ def write_summary(path, rows):
         "min_samples",
         "n_clusters",
         "frac_assigned_non_noise",
-        "mean_persistence",
-        "replicate_consistency",
+        "cluster_stability_metric",
+        "replicate_consistency_metric",
         "score_total",
         "selected",
         "selected_2clusters",
@@ -123,6 +123,8 @@ def main():
     args = parser.parse_args()
 
     coord_header, sample_ids, coords, matrix = load_matrix(args.matrix)
+    if matrix.size:
+        matrix = np.log2(np.maximum(matrix, 1e-6))
     conditions = load_samplesheet(args.samplesheet, sample_ids) if args.samplesheet else []
 
     try:
@@ -135,8 +137,8 @@ def main():
                 "min_samples": 0,
                 "n_clusters": 1,
                 "frac_assigned_non_noise": 1.0,
-                "mean_persistence": 1.0,
-                "replicate_consistency": 0.0,
+                "cluster_stability_metric": 1.0,
+                "replicate_consistency_metric": 0.0,
                 "score_total": 1.0,
                 "selected": True,
                 "selected_2clusters": False,
@@ -161,25 +163,25 @@ def main():
         labels = clusterer.fit_predict(matrix) if matrix.size else np.array([])
         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
         fraction_assigned = float(np.sum(labels >= 0)) / float(len(labels)) if len(labels) else 0.0
-        mean_persistence = float(np.mean(clusterer.cluster_persistence_)) if getattr(clusterer, 'cluster_persistence_', None) is not None and len(clusterer.cluster_persistence_) > 0 else 0.0
+        cluster_stability = float(np.mean(clusterer.cluster_persistence_)) if getattr(clusterer, 'cluster_persistence_', None) is not None and len(clusterer.cluster_persistence_) > 0 else 0.0
         rep_consistency = replicate_consistency(matrix, labels, conditions) if len(labels) else 0.0
-        score_total = float(fraction_assigned + mean_persistence + rep_consistency)
+        score_total = float(fraction_assigned + cluster_stability + rep_consistency)
         labels_by_params[(mcs, ms)] = labels
         results.append({
             "min_cluster_size": mcs,
             "min_samples": ms,
             "n_clusters": n_clusters,
             "frac_assigned_non_noise": round(fraction_assigned, 4),
-            "mean_persistence": round(mean_persistence, 4),
-            "replicate_consistency": round(rep_consistency, 4),
+            "cluster_stability_metric": round(cluster_stability, 4),
+            "replicate_consistency_metric": round(rep_consistency, 4),
             "score_total": round(score_total, 4),
             "selected": False,
             "selected_2clusters": False,
             "selected_3clusters": False,
         })
 
-    # Rank by cluster count first, then overall score, fraction assigned, and persistence.
-    rank_key = lambda row: (row["n_clusters"], row["score_total"], row["frac_assigned_non_noise"], row["mean_persistence"])
+    # Rank by cluster count first, then overall score, fraction assigned, and stability.
+    rank_key = lambda row: (row["n_clusters"], row["score_total"], row["frac_assigned_non_noise"], row["cluster_stability_metric"])
     best = max(results, key=rank_key)
     best_2 = None
     best_3 = None

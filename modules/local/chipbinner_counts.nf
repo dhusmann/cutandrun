@@ -8,7 +8,7 @@ process CHIPBINNER_COUNTS {
         saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
     ]
 
-    conda "bioconda::bedtools=2.31.1 conda-forge::python=3.11"
+    conda "bioconda::bedtools=2.31.1 conda-forge::python=3.11 conda-forge::pyyaml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://depot.galaxyproject.org/singularity/bedtools:2.31.1--hf5e1c6e_0' :
         'biocontainers/bedtools:2.31.1--hf5e1c6e_0' }"
@@ -98,49 +98,22 @@ process CHIPBINNER_COUNTS {
             handle.write(line + "\\n")
 
     def parse_ms_coeffs_file(path):
+        try:
+            import yaml
+        except Exception as exc:
+            raise ValueError(f"PyYAML is required to parse MS coefficients: {exc}")
         with open(path) as handle:
-            raw_lines = handle.read().splitlines()
-        lines = []
-        for raw in raw_lines:
-            line = raw.split("#", 1)[0].rstrip()
-            if line.strip():
-                lines.append(line)
-        if not lines:
+            data = yaml.safe_load(handle)
+        if data is None:
             return {}
-        # Detect list of dicts
-        entries = []
-        current = None
-        in_samples_block = False
-        coeffs_map = {}
-        for raw in lines:
-            stripped = raw.lstrip()
-            if stripped.startswith("samples:"):
-                in_samples_block = True
-                continue
-            if stripped.startswith("-"):
-                if current:
-                    entries.append(current)
-                current = {}
-                item = stripped[1:].strip()
-                if item and ":" in item:
-                    key, value = item.split(":", 1)
-                    current[key.strip()] = value.strip()
-                continue
-            if ":" in stripped:
-                key, value = stripped.split(":", 1)
-                key = key.strip()
-                value = value.strip()
-                if in_samples_block or (current is not None and raw.startswith(" ")):
-                    if current is None:
-                        current = {}
-                    current[key] = value
-                else:
-                    coeffs_map[key] = value
-        if current:
-            entries.append(current)
-        if entries:
+
+        def parse_entries(entries):
             coeffs = {}
+            if not isinstance(entries, list):
+                raise ValueError("MS coefficients 'samples' must be a list")
             for entry in entries:
+                if not isinstance(entry, dict):
+                    raise ValueError("MS coefficients entry must be a mapping")
                 sample_id = entry.get("sample_id") or entry.get("sample")
                 if not sample_id:
                     raise ValueError("MS coefficients entry missing sample_id")
@@ -149,8 +122,18 @@ process CHIPBINNER_COUNTS {
                     raise ValueError(f"MS coefficients entry missing coefficient for {sample_id}")
                 coeffs[str(sample_id)] = float(value)
             return coeffs
-        if coeffs_map:
-            return {str(key): float(value) for key, value in coeffs_map.items()}
+
+        if isinstance(data, list):
+            return parse_entries(data)
+        if isinstance(data, dict):
+            if "samples" in data:
+                samples = data["samples"]
+                if isinstance(samples, list):
+                    return parse_entries(samples)
+                if isinstance(samples, dict):
+                    return {str(key): float(value) for key, value in samples.items()}
+                raise ValueError("MS coefficients 'samples' must be a list or mapping")
+            return {str(key): float(value) for key, value in data.items()}
         raise ValueError("Unsupported MS coefficients YAML structure")
 
     ms_coeffs = {}

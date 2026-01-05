@@ -452,6 +452,8 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         CHIPBINNER_ROTS(
             CHIPBINNER_COUNTS.out.normalized,
             CHIPBINNER_HDBSCAN_GRID.out.clusters,
+            CHIPBINNER_HDBSCAN_GRID.out.clusters_2,
+            CHIPBINNER_HDBSCAN_GRID.out.clusters_3,
             CHIPBINNER_HDBSCAN_GRID.out.grid_summary,
             CHIPBINNER_COUNTS.out.norm_info,
             ch_chipbinner_inputs.map { bins, samples_json, bams, bais, control_bams, control_bais, control_conditions_json, use_input_group, group -> samples_json },
@@ -470,12 +472,27 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         ch_chipbinner_down = CHIPBINNER_ROTS.out.down
 
         if (lola_should_run) {
-            ch_lola_beds = Channel.empty()
-            ch_lola_beds = ch_lola_beds.mix(
-                CHIPBINNER_ROTS.out.control_enriched.map { group, file -> [group, 'control_enriched', file] },
-                CHIPBINNER_ROTS.out.treated_enriched.map { group, file -> [group, 'treated_enriched', file] },
-                CHIPBINNER_ROTS.out.stable.map { group, file -> [group, 'stable', file] }
-            )
+            ch_lola_beds = CHIPBINNER_ROTS.out.cluster_beds
+                .flatMap { group, manifest ->
+                    def lines = manifest.text.readLines()
+                    if (lines.size() <= 1) {
+                        return []
+                    }
+                    lines.drop(1).collect { line ->
+                        def parts = line.split('\\t', -1)
+                        if (parts.size() < 3) {
+                            return null
+                        }
+                        def model = parts[0]
+                        def label = parts[1]
+                        def bed_path = parts[2]
+                        if (label == 'noise') {
+                            return null
+                        }
+                        def lola_label = (model == 'best' || model == '') ? label : "${label}.${model}"
+                        [group, lola_label, file(bed_path)]
+                    }.findAll { it != null }
+                }
 
             ch_lola_inputs = CHIPBINNER_BINS.out.bins.join(ch_lola_beds)
                 .map { group, bins_file, label, bed_file -> [group, label, bed_file, bins_file] }

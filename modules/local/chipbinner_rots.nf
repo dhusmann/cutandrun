@@ -23,6 +23,8 @@ process CHIPBINNER_ROTS {
     input:
     path matrix
     path clusters
+    path clusters_2
+    path clusters_3
     path grid_summary
     path norm_info
     val samples_json
@@ -44,6 +46,8 @@ process CHIPBINNER_ROTS {
     tuple val(group), path("chipbinner.treated_enriched.bed")   , emit: treated_enriched
     tuple val(group), path("chipbinner.stable.bed")             , emit: stable
     tuple val(group), path("chipbinner.noise.bed")              , emit: noise
+    path "chipbinner.*clusters*.bed"                            , optional: true, emit: cluster_beds_extra
+    tuple val(group), path("chipbinner.cluster_beds.tsv")       , emit: cluster_beds
     tuple val(group), path("chipbinner.summary.tsv")            , emit: summary
     tuple val(group), path("plots")                             , emit: plots
     path "versions.yml"                                         , emit: versions
@@ -68,6 +72,8 @@ process CHIPBINNER_ROTS {
     Rscript ${projectDir}/bin/chipbinner_rots.R \
         --matrix ${matrix} \
         --clusters ${clusters} \
+        --clusters_2 ${clusters_2} \
+        --clusters_3 ${clusters_3} \
         --grid_summary ${grid_summary} \
         --norm_info ${norm_info} \
         --samplesheet chipbinner.samplesheet.csv \

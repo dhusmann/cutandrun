@@ -114,8 +114,14 @@ class WorkflowCutandrun {
             }
         }
 
-        if (params.run_span_diff && !params.omnipeaks_jar) {
-            Nextflow.error "SPAN differential requested but --omnipeaks_jar was not provided."
+        if (params.run_span_diff) {
+            if (!params.omnipeaks_jar) {
+                Nextflow.error "SPAN differential requested but --omnipeaks_jar was not provided."
+            }
+            def jar_path = new File(params.omnipeaks_jar.toString())
+            if (!jar_path.exists()) {
+                Nextflow.error "SPAN differential requested but --omnipeaks_jar path does not exist: ${params.omnipeaks_jar}"
+            }
         }
 
         if (params.differential_use_spikein && !['auto','true','false'].contains(params.differential_use_spikein.toString())) {

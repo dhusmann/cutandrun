@@ -26,6 +26,7 @@ process SPAN_DIFF_RUN {
     tuple val(group), path("span.summary.tsv"), emit: summary
     tuple val(group), path("span.mode.txt"), emit: mode_out
     tuple val(group), path("span_diff_target_pooling.tsv", optional: true), emit: pooling
+    tuple val(group), path("span.normalization_factors.tsv", optional: true), emit: norm_factors
     path "*.pooled.bam", optional: true, emit: pooled_bam
     path "*.pooled.bam.bai", optional: true, emit: pooled_bai
     path "versions.yml", emit: versions

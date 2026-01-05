@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import csv
+import math
 import os
 import re
 import subprocess
@@ -304,9 +305,12 @@ def write_summary(path: str, group: str, treated: str, control: str, n_tested: i
     write_tsv(path, header, rows)
 
 
-def write_mode(path: str, mode: str, signature: str) -> None:
+def write_mode(path: str, mode: str, signature: str, notes: List[str] = None) -> None:
     with open(path, "w") as handle:
         handle.write(f"{mode}:{signature}\n")
+        if notes:
+            for note in notes:
+                handle.write(f"{note}\n")
 
 
 def filter_bed_by_stats(rows: List[Dict[str, str]], fdr_cutoff: float, direction: str) -> List[Tuple[str, int, int]]:
@@ -343,6 +347,38 @@ def write_failure_outputs(outdir: str, group: str, treated: str, control: str, m
     open(down_path, "w").close()
     write_summary(summary_path, group, treated, control, 0, 0, 0, 0, mode, "FAIL", reason)
     write_mode(mode_path, mode, signature)
+
+
+def compute_orientation_log2fc(
+    bed_path: str,
+    treated_bams: List[str],
+    control_bams: List[str],
+    pseudocount: float,
+) -> Dict[Tuple[str, str, str], List[float]]:
+    if not treated_bams or not control_bams:
+        raise RuntimeError("orientation_missing_bams")
+    cmd = ["bedtools", "multicov", "-bed", bed_path, "-bams"] + treated_bams + control_bams
+    result = run_cmd(cmd, check=False)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "bedtools_multicov_failed")
+    orientation = {}
+    for line in result.stdout.strip().split("\n"):
+        if not line:
+            continue
+        parts = line.split("\t")
+        if len(parts) < 3:
+            continue
+        key = (parts[0], parts[1], parts[2])
+        counts = [safe_float(val) or 0.0 for val in parts[3:]]
+        t_counts = counts[: len(treated_bams)]
+        c_counts = counts[len(treated_bams) :]
+        if not t_counts or not c_counts:
+            continue
+        t_mean = sum(t_counts) / len(t_counts)
+        c_mean = sum(c_counts) / len(c_counts)
+        log2fc = math.log2((t_mean + pseudocount) / (c_mean + pseudocount))
+        orientation.setdefault(key, []).append(log2fc)
+    return orientation
 
 
 def main():
@@ -541,9 +577,13 @@ def main():
 
             treated_arg = ""
             control_arg = ""
+            compare_treated_bams = []
+            compare_control_bams = []
             if use_lists:
                 treated_arg = ",".join(treated_bams)
                 control_arg = ",".join(control_bams)
+                compare_treated_bams = treated_bams
+                compare_control_bams = control_bams
             else:
                 if len(treated_bams) > 1:
                     treated_arg = pool_bams(treated, treated_bams)
@@ -553,6 +593,8 @@ def main():
                     control_arg = pool_bams(control, control_bams)
                 else:
                     control_arg = control_bams[0]
+                compare_treated_bams = [treated_arg]
+                compare_control_bams = [control_arg]
 
             output_target = "span.native"
             output_path = output_target
@@ -604,10 +646,25 @@ def main():
             if not rows:
                 raise RuntimeError("native_output_empty")
 
-            write_tsv(diff_path, ["chr", "start", "end", "log2FC", "pval", "FDR"], rows)
             bed_rows = [(r["chr"], int(r["start"]), int(r["end"])) for r in rows if is_int(r["start"]) and is_int(r["end"])]
             bed_rows.sort(key=lambda x: (x[0], x[1], x[2]))
             write_bed(bed_path, bed_rows)
+
+            pseudocount = 0.5
+            orientation_map = compute_orientation_log2fc(
+                bed_path,
+                compare_treated_bams,
+                compare_control_bams,
+                pseudocount,
+            )
+            for row in rows:
+                key = (row.get("chr"), row.get("start"), row.get("end"))
+                values = orientation_map.get(key, [])
+                log2fc_user = values.pop(0) if values else None
+                row["log2FC_span"] = row.get("log2FC", "NA")
+                row["log2FC"] = f"{log2fc_user:.6f}" if log2fc_user is not None else "NA"
+
+            write_tsv(diff_path, ["chr", "start", "end", "log2FC", "log2FC_span", "pval", "FDR"], rows)
 
             up_rows = filter_bed_by_stats(rows, args.fdr, "up")
             down_rows = filter_bed_by_stats(rows, args.fdr, "down")
@@ -623,7 +680,12 @@ def main():
                     pooled_rows,
                 )
 
-            write_mode(mode_path, "native", signature)
+            write_mode(
+                mode_path,
+                "native",
+                signature,
+                notes=[f"orientation=treated/control", f"orientation_pseudocount={pseudocount}"],
+            )
             finalize_success(rows, "native")
             return
 
@@ -664,6 +726,37 @@ def main():
                 handle.write(
                     f"{row.get('sample_id','')}\t{row.get('condition','')}\t{row.get('spikein_scale_factor','NA')}\n"
                 )
+
+        normalization_path = os.path.join(args.outdir, "span.normalization_factors.tsv")
+        spikein_values = []
+        for row in samples_sorted:
+            spikein_values.append(row.get("spikein_scale_factor", "NA"))
+
+        spikein_numeric = []
+        for val in spikein_values:
+            try:
+                spikein_numeric.append(float(val))
+            except Exception:
+                spikein_numeric.append(None)
+
+        use_spikein_factors = use_spikein and any(val is not None for val in spikein_numeric)
+        with open(normalization_path, "w") as handle:
+            handle.write("sample_id\tgroup\tcondition\tspikein_scale_factor\tspikein_size_factor\tused_by_backend\n")
+            for idx, row in enumerate(samples_sorted):
+                scale_val = spikein_values[idx]
+                size_factor = "NA"
+                used_by_backend = args.fallback_backend
+                if use_spikein_factors:
+                    used_by_backend = "spikein"
+                    numeric = spikein_numeric[idx]
+                    if numeric is None or numeric == 0:
+                        size_factor = "1"
+                    else:
+                        size_factor = f"{1.0 / numeric:.6f}"
+                handle.write(
+                    f"{row.get('sample_id','')}\t{row.get('group','')}\t{row.get('condition','')}\t{scale_val}\t{size_factor}\t{used_by_backend}\n"
+                )
+        print(f"INFO: wrote normalization factors to {normalization_path}", file=sys.stderr)
 
         r_script = os.path.join(os.path.dirname(__file__), "span_fallback_de.R")
         cmd = [

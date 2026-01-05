@@ -10,7 +10,7 @@
     - path: results/03_peak_calling/05_consensus_peaks/h3k27me3/NA/h3k27me3_NA_seacr_consensus.awk.bed
 
 - name: test_consensus_peaks_all
-  command: nextflow run main.nf -profile docker,test_full_small --only_peak_calling --skip_fastqc --skip_multiqc --skip_preseq --consensus_peak_mode all -c tests/config/nextflow.config
+  command: nextflow run main.nf -profile docker,test_full_small --only_peak_calling --skip_fastqc --skip_multiqc --skip_preseq --consensus_grouping all -c tests/config/nextflow.config
   tags:
     - test_consensus_peaks
     - test_consensus_peaks_all

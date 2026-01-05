@@ -436,6 +436,9 @@ SPAN/OmniPeaks callers require pooled controls and the `--omnipeaks_jar` paramet
 - `03_peak_calling/05_consensus_peaks/<group>/<condition>/`
   - `<group>_<condition>_<caller>.consensus.peak_counts.bed`: merged consensus peaks with replicate counts.
   - `<group>_<condition>_<caller>_consensus.awk.bed`: filtered consensus peaks after applying `--replicate_threshold`.
+- `03_peak_calling/05_consensus_peaks/all/all/` (when `--consensus_grouping all`)
+  - `all_samples_<caller>_consensus.awk.bed`: filtered consensus peaks across all samples.
+  - `all_all_<caller>.consensus.peak_counts.bed`: merged consensus peaks with replicate counts across all samples.
 
 </details>
 

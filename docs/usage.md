@@ -165,7 +165,7 @@ If control samples are provided in the sample sheet, they will be used to normal
 
 ### Consensus Peaks
 
-After peak calling, consensus peaks are calculated by merging peaks within the same grouping key. Use `--consensus_grouping` to choose `group` or `group_condition`. By default, if the samplesheet includes a `condition` column, grouping uses `group_condition`; otherwise it falls back to `group`. The number of replicates required for a valid peak can be changed using `replicate_threshold`. To call consensus peaks across all samples, set `--consensus_peak_mode all`.
+After peak calling, consensus peaks are calculated by merging peaks within the same grouping key. Use `--consensus_grouping` to choose `group`, `group_condition`, or `all`. By default, if the samplesheet includes a `condition` column, grouping uses `group_condition`; otherwise it falls back to `group`. Set `--consensus_grouping all` to call consensus peaks across all samples. The number of replicates required for a valid peak can be changed using `replicate_threshold`. The legacy `--consensus_peak_mode all` still maps to the same all-samples behavior.
 
 ### Reproducibility
 

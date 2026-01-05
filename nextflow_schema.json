@@ -474,8 +474,8 @@
                 "consensus_grouping": {
                     "type": "string",
                     "fa_icon": "fas fa-align-justify",
-                    "description": "Grouping key for consensus peaks when consensus_peak_mode is group. Options are [group, group_condition]. Defaults to group_condition when the samplesheet has a condition column, otherwise group.",
-                    "enum": ["group", "group_condition"]
+                    "description": "Grouping key for consensus peaks when consensus_peak_mode is group. Options are [group, group_condition, all]. Defaults to group_condition when the samplesheet has a condition column, otherwise group. Set to all to compute consensus across all samples.",
+                    "enum": ["group", "group_condition", "all"]
                 },
                 "replicate_threshold": {
                     "type": "number",

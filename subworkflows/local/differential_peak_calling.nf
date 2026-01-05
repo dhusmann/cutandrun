@@ -180,7 +180,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         ch_peaks_rows = ch_peaks_manifest.splitCsv(header: true, sep: '\t')
         ch_design_rows = DIFFERENTIAL_DESIGN.out.design.splitCsv(header: true, sep: '\t')
 
-        ch_gene_bed_single = ch_gene_bed.collect().map { it[0] }
+        ch_gene_bed_single = ch_gene_bed.first()
 
         def diff_use_spikein = params.differential_use_spikein ? params.differential_use_spikein.toString().toLowerCase() : 'auto'
         def use_spikein = (diff_use_spikein == 'true') || (diff_use_spikein == 'auto' && params.normalisation_mode == 'Spikein')

@@ -35,12 +35,17 @@ workflow PEAK_QC {
     /*
     * CHANNEL: Combine channel together for frip calculation
     */
-    peaks
-    .map { row -> [row[0].id, row ].flatten()}
-    .join ( fragments_bed.map { row -> [row[0].id, row ].flatten()} )
-    .join ( flagstat.map { row -> [row[0].id, row ].flatten()} )
-    .map { row -> [ row[1], row[2], row[4], row[6] ]}
-    .set { ch_frip }
+    def ch_peaks_by_id = peaks
+        .map { row -> [row[0].id, row] }
+        .groupTuple(by: [0])
+
+    ch_peaks_by_id
+        .join ( fragments_bed.map { row -> [row[0].id, row[1]] } )
+        .join ( flagstat.map { row -> [row[0].id, row[1]] } )
+        .flatMap { id, peak_rows, fragments, flagstat_file ->
+            peak_rows.collect { peak_row -> [ peak_row[0], peak_row[1], fragments, flagstat_file ] }
+        }
+        .set { ch_frip }
 
     /*
     * MODULE: Calculate frip scores for sample peaks

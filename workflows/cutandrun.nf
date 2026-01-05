@@ -102,11 +102,6 @@ def caller_list = [
     'span_default',
     'span_stringent'
 ]
-callers = params.callers ?: ['seacr']
-if ((caller_list + callers).unique().size() != caller_list.size()) {
-    exit 1, "Invalid variant calller option: ${params.peakcaller ?: params.peakcaller_preset}. Valid options: ${caller_list.join(', ')}"
-}
-
 /*
 ========================================================================================
     IMPORT LOCAL MODULES/SUBWORKFLOWS
@@ -187,6 +182,10 @@ workflow CUTANDRUN {
 
     // Init
     ch_software_versions = Channel.empty()
+    def caller_ids = params.callers ?: ['seacr']
+    if ((caller_list + caller_ids).unique().size() != caller_list.size()) {
+        exit 1, "Invalid variant calller option: ${params.peakcaller ?: params.peakcaller_preset}. Valid options: ${caller_list.join(', ')}"
+    }
 
     /*
      * SUBWORKFLOW: Uncompress and prepare reference genome files
@@ -501,7 +500,7 @@ workflow CUTANDRUN {
         //ch_bam_control | view
 
         /*
-        * SUBWORKFLOW: Call peaks using extended callers
+        * SUBWORKFLOW: Call peaks using extended caller_ids
         */
         PEAK_CALLING_EXTENDED (
             ch_bedgraph_target,
@@ -509,7 +508,7 @@ workflow CUTANDRUN {
             ch_bam_target,
             ch_bam_control,
             PREPARE_GENOME.out.chrom_sizes,
-            callers
+            caller_ids
         )
         ch_peaks_all           = PEAK_CALLING_EXTENDED.out.peaks
         ch_macs2_summits       = PEAK_CALLING_EXTENDED.out.macs2_summits
@@ -519,7 +518,7 @@ workflow CUTANDRUN {
         ch_gopeaks_json        = PEAK_CALLING_EXTENDED.out.gopeaks_json
         ch_software_versions   = ch_software_versions.mix(PEAK_CALLING_EXTENDED.out.versions)
 
-        if (callers.find { it.startsWith('macs2') }) {
+        if (caller_ids.find { it.startsWith('macs2') }) {
             /*
             * MODULE: Convert MACS2 outputs to BED
             */
@@ -536,14 +535,14 @@ workflow CUTANDRUN {
         }
 
         // Identify the primary peak data stream for downstream analysis
-        ch_peaks_primary   = ch_peaks_all.filter { it[0].caller == callers[0] }
-        ch_peaks_secondary = ch_peaks_all.filter { it[0].caller != callers[0] }
+        ch_peaks_primary   = ch_peaks_all.filter { it[0].caller == caller_ids[0] }
+        ch_peaks_secondary = ch_peaks_all.filter { it[0].caller != caller_ids[0] }
 
         /*
         * CHANNEL: Build summit/peak inputs for heatmaps per caller
         */
         ch_peaks_summits = Channel.empty()
-        if (callers.contains('seacr')) {
+        if (caller_ids.contains('seacr')) {
             /*
             * MODULE: Extract summits from seacr peak beds
             */
@@ -556,10 +555,10 @@ workflow CUTANDRUN {
         }
 
         def macs2_summit_callers = []
-        if (callers.contains('macs2_narrow')) {
+        if (caller_ids.contains('macs2_narrow')) {
             macs2_summit_callers.add('macs2_narrow')
         }
-        if (callers.contains('macs2') && params.macs2_narrow_peak) {
+        if (caller_ids.contains('macs2') && params.macs2_narrow_peak) {
             macs2_summit_callers.add('macs2')
         }
 
@@ -569,15 +568,15 @@ workflow CUTANDRUN {
             )
         }
 
-        def macs2_no_summit_callers = callers.findAll { it.startsWith('macs2') && !macs2_summit_callers.contains(it) }
+        def macs2_no_summit_callers = caller_ids.findAll { it.startsWith('macs2') && !macs2_summit_callers.contains(it) }
         if (macs2_no_summit_callers) {
             ch_peaks_summits = ch_peaks_summits.mix(
                 ch_peaks_all.filter { macs2_no_summit_callers.contains(it[0].caller) }
             )
         }
 
-        def summit_override_callers = ['seacr'] + callers.findAll { it.startsWith('macs2') }
-        def other_callers = callers.findAll { !summit_override_callers.contains(it) }
+        def summit_override_callers = ['seacr'] + caller_ids.findAll { it.startsWith('macs2') }
+        def other_callers = caller_ids.findAll { !summit_override_callers.contains(it) }
         if (other_callers) {
             ch_peaks_summits = ch_peaks_summits.mix(
                 ch_peaks_all.filter { other_callers.contains(it[0].caller) }

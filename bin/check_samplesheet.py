@@ -92,6 +92,11 @@ def check_samplesheet(file_in, file_out, use_control, allow_cross_condition_cont
     missing_control_warnings = []
     cross_condition_warnings = []
     legacy_na_warnings = []
+    warning_lines = []
+
+    def record_warning(message):
+        print(message)
+        warning_lines.append(message)
 
     with open(file_in, "r") as fin:
         ## Check header
@@ -249,7 +254,7 @@ def check_samplesheet(file_in, file_out, use_control, allow_cross_condition_cont
     for ctrl in control_names_list:
         if ctrl != "" and ctrl not in sample_names_list:
             if allow_cross_condition_controls:
-                print(
+                record_warning(
                     "WARNING: Control entry '{}' does not match any group entry; proceeding because "
                     "--allow_cross_condition_controls was set. Control-required callers will be skipped.".format(ctrl)
                 )
@@ -284,7 +289,7 @@ def check_samplesheet(file_in, file_out, use_control, allow_cross_condition_cont
         )
 
     if use_control == "false" and control_present:
-        print(
+        record_warning(
             "WARNING: Parameter --use_control was set to false, but an control group was found in " + str(file_in) + "."
         )
 
@@ -370,34 +375,38 @@ def check_samplesheet(file_in, file_out, use_control, allow_cross_condition_cont
             sys.exit(1)
 
         if missing_control_warnings:
-            print(
+            record_warning(
                 "WARNING: No control rows exist for one or more control groups; proceeding because "
                 "--allow_cross_condition_controls was set. Control-required callers will be skipped for these samples."
             )
             for entry in missing_control_warnings:
-                print(
+                record_warning(
                     " - sample_id: {sample_id} | group: {group} | condition: {condition} | replicate: {replicate} | "
                     "control_group: {control_group} | control_conditions_found: {control_conditions}".format(**entry)
                 )
 
         if legacy_na_warnings:
-            print("WARNING: Control rows with condition=NA used for targets with explicit conditions (legacy mode).")
+            record_warning("WARNING: Control rows with condition=NA used for targets with explicit conditions (legacy mode).")
             for entry in legacy_na_warnings:
-                print(
+                record_warning(
                     " - sample_id: {sample_id} | group: {group} | condition: {condition} | replicate: {replicate} | "
                     "control_group: {control_group} | control_conditions_found: {control_conditions}".format(**entry)
                 )
 
         if cross_condition_warnings:
-            print(
+            record_warning(
                 "WARNING: No exact condition-matched controls found; proceeding with cross-condition controls "
                 "because --allow_cross_condition_controls was set."
             )
             for entry in cross_condition_warnings:
-                print(
+                record_warning(
                     " - sample_id: {sample_id} | group: {group} | condition: {condition} | replicate: {replicate} | "
                     "control_group: {control_group} | control_conditions_found: {control_conditions}".format(**entry)
                 )
+
+    with open("samplesheet.warnings.txt", "w") as warn:
+        if warning_lines:
+            warn.write("\n".join(warning_lines) + "\n")
 
     ## Write validated samplesheet with appropriate columns
     if len(sample_run_dict) > 0:

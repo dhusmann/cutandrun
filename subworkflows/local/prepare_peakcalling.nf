@@ -25,6 +25,7 @@ workflow PREPARE_PEAKCALLING {
     main:
     ch_versions = Channel.empty()
     ch_bedgraph = Channel.empty()
+    ch_scope_reference = Channel.empty()
     def norm_scope = normalisation_scope ?: 'all'
     def igg_scope  = igg_scale_scope ?: 'legacy'
     def median = { List values ->
@@ -114,7 +115,6 @@ workflow PREPARE_PEAKCALLING {
         ch_versions = ch_versions.mix(NORMALISATION_FACTORS_REPORT.out.versions)
 
         if (params.dump_scale_factors) {
-            def ch_scope_reference = Channel.empty()
             if (norm_scope == 'all') {
                 ch_scope_reference = Channel.of([scope_id: 'all', reference_reads: params.normalisation_c])
             } else {

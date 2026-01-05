@@ -79,11 +79,17 @@ def main():
             a_cols = 4
             distance = parts[-1] if parts else "NA"
             b_cols = len(parts) - a_cols - 1
+            gene_id = "NA"
+            gene_name = "NA"
             if b_cols >= 4:
                 gene_id = parts[a_cols + 3]
-            else:
+            if b_cols >= 5:
+                gene_name = parts[a_cols + 4]
+            if gene_id in [".", ""]:
                 gene_id = "NA"
-            annotations[idx] = (gene_id, gene_id, distance)
+            if gene_name in [".", ""]:
+                gene_name = "NA"
+            annotations[idx] = (gene_id, gene_name, distance)
 
     with open(args.out, "w") as handle:
         if header:

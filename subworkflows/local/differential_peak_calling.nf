@@ -14,6 +14,9 @@ include { DIFFBIND_RUN } from "../../modules/local/diffbind_run"
 include { CHIPBINNER_RUN } from "../../modules/local/chipbinner_run"
 include { SPAN_DIFF_RUN } from "../../modules/local/span_diff_run"
 include { ANNOTATE_REGIONS } from "../../modules/local/annotate_regions"
+include { GTF_TO_GENE_BED } from "../../modules/local/gtf_to_gene_bed"
+include { BEDTOOLS_SORT as ANNOTATION_GENE_BED_SORT } from "../../modules/local/for_patch/bedtools/sort/main"
+include { CACHE_DIFFERENTIAL_GENE_BED } from "../../modules/local/cache_differential_gene_bed"
 include { DIFFERENTIAL_SUMMARY } from "../../modules/local/differential_summary"
 include { MULTIQC_DIFFERENTIAL } from "../../modules/local/multiqc_differential"
 
@@ -26,6 +29,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
     ch_scale_factors
     ch_chrom_sizes
     ch_gene_bed
+    ch_gtf
     ch_blacklist
     ch_samples_manifest_in
     ch_peaks_manifest_in
@@ -180,7 +184,35 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         ch_peaks_rows = ch_peaks_manifest.splitCsv(header: true, sep: '\t')
         ch_design_rows = DIFFERENTIAL_DESIGN.out.design.splitCsv(header: true, sep: '\t')
 
-        ch_gene_bed_single = ch_gene_bed.first()
+        def annotation_enabled = (params.run_diffbind || params.run_chipbinner || params.run_span_diff) && !params.differential_publish_manifest_only
+        ch_gene_bed_single = Channel.empty()
+        if (annotation_enabled) {
+            GTF_TO_GENE_BED ( ch_gtf )
+            ch_versions = ch_versions.mix(GTF_TO_GENE_BED.out.versions)
+
+            ANNOTATION_GENE_BED_SORT (
+                GTF_TO_GENE_BED.out.bed.map { bed -> [ [id: bed.baseName], bed ] },
+                "bed",
+                []
+            )
+            ch_versions = ch_versions.mix(ANNOTATION_GENE_BED_SORT.out.versions)
+
+            ch_gene_bed_from_gtf = ANNOTATION_GENE_BED_SORT.out.sorted.map { it[1] }
+            ch_gene_bed_selected = ch_gene_bed.ifEmpty(ch_gene_bed_from_gtf)
+
+            ch_gene_bed_single = ch_gene_bed_selected
+                .collect()
+                .map { beds ->
+                    if (!beds || beds.size() == 0) {
+                        exit 1, "Differential annotation requires --gene_bed or --gtf."
+                    }
+                    beds[0]
+                }
+
+            CACHE_DIFFERENTIAL_GENE_BED ( ch_gene_bed_single )
+            ch_versions = ch_versions.mix(CACHE_DIFFERENTIAL_GENE_BED.out.versions)
+            ch_gene_bed_single = CACHE_DIFFERENTIAL_GENE_BED.out.bed.first()
+        }
 
         def contrast_labels = params.differential_contrast.split(',').collect { it.trim() }
         ch_samples_rows_contrast = ch_samples_rows.filter { row -> contrast_labels.contains(row.condition) }
@@ -247,16 +279,18 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             )
             ch_versions = ch_versions.mix(DIFFBIND_RUN.out.versions)
 
-            ch_diffbind_annot = DIFFBIND_RUN.out.results
-                .combine(ch_gene_bed_single)
-                .map { tuple, gene_bed ->
-                    def group = tuple[0]
-                    def caller = tuple[1]
-                    def regions = tuple[2]
-                    [ 'diffbind', group, caller, regions, gene_bed, "01_diffbind/${caller}/${group}/diffbind.results.annotated.tsv" ]
-                }
+            if (annotation_enabled) {
+                ch_diffbind_annot = DIFFBIND_RUN.out.results
+                    .combine(ch_gene_bed_single)
+                    .map { tuple, gene_bed ->
+                        def group = tuple[0]
+                        def caller = tuple[1]
+                        def regions = tuple[2]
+                        [ 'diffbind', group, caller, regions, gene_bed, "01_diffbind/${caller}/${group}/diffbind.results.annotated.tsv" ]
+                    }
 
-            ch_annotation_requests = ch_annotation_requests.mix(ch_diffbind_annot)
+                ch_annotation_requests = ch_annotation_requests.mix(ch_diffbind_annot)
+            }
             ch_diffbind_summary = DIFFBIND_RUN.out.summary.map { it[2] }
         }
 
@@ -313,68 +347,39 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             )
             ch_versions = ch_versions.mix(CHIPBINNER_RUN.out.versions)
 
-            ch_chip_annot = CHIPBINNER_RUN.out.differential
-                .combine(ch_gene_bed_single)
-                .map { tuple, gene_bed ->
-                    def group = tuple[0]
-                    def regions = tuple[1]
-                    [ 'chipbinner', group, 'NA', regions, gene_bed, "02_chipbinner/${group}/chipbinner.differential.annotated.tsv" ]
-                }
+            if (annotation_enabled) {
+                ch_chip_annot = CHIPBINNER_RUN.out.differential
+                    .combine(ch_gene_bed_single)
+                    .map { tuple, gene_bed ->
+                        def group = tuple[0]
+                        def regions = tuple[1]
+                        [ 'chipbinner', group, 'NA', regions, gene_bed, "02_chipbinner/${group}/chipbinner.differential.annotated.tsv" ]
+                    }
 
-            ch_annotation_requests = ch_annotation_requests.mix(ch_chip_annot)
+                ch_annotation_requests = ch_annotation_requests.mix(ch_chip_annot)
+            }
             ch_chipbinner_summary = CHIPBINNER_RUN.out.summary.map { it[1] }
         }
 
         if (params.run_span_diff && !params.differential_publish_manifest_only) {
             ch_span_design = ch_design_rows
                 .filter { row -> row.caller == 'NA' && row.status == 'RUN' && row.eligible_span == 'true' }
-                .map { row -> [row.group, row] }
-
-            ch_span_records = ch_samples_rows_contrast
-                .map { row -> [row.group, row] }
-                .groupTuple(by: [0])
-                .join(ch_span_design)
-                .map { group, rows, design -> [ group, rows ] }
-
-            ch_span_records
-                .map { group, rows -> [ group, JsonOutput.toJson(rows) ] }
-                .set { ch_span_records_json }
-
-            RECORDS_TO_TSV_SPAN (
-                ch_span_records_json.map { it[0] },
-                ch_span_records_json.map { 'NA' },
-                ch_span_records_json.map { it[1] },
-                'sample_id\tgroup\tcondition\treplicate\tfinal_bam',
-                ch_span_records_json.map { group, json -> "span_${group}.tsv" }
-            )
-            ch_versions = ch_versions.mix(RECORDS_TO_TSV_SPAN.out.versions)
-
-            ch_span_records_file = RECORDS_TO_TSV_SPAN.out.tsv
-                .map { group, caller, records_file -> [group, records_file] }
+                .map { row -> row.group }
 
             def span_caller_priority = (params.callers ?: [])
                 .collect { it.toString().toLowerCase() }
                 .findAll { it.startsWith('span') || it.startsWith('omnipeak') }
+                .join(',')
 
-            ch_span_peaks = ch_peaks_rows
-                .filter { row ->
-                    def caller = row.caller?.toString()?.toLowerCase()
-                    caller && (caller.startsWith('span') || caller.startsWith('omnipeak'))
-                }
-                .map { row -> [row.group, row.caller?.toString()?.toLowerCase(), row.peaks_path] }
-                .groupTuple(by: [0])
-                .map { group, entries ->
-                    def peaks_by_caller = entries.groupBy { it[1] }
-                    def chosen = span_caller_priority.find { peaks_by_caller.containsKey(it) } ?: peaks_by_caller.keySet().sort()[0]
-                    if (peaks_by_caller.size() > 1) {
-                        log.warn "Multiple SPAN callers for group ${group}; using '${chosen}' for differential peaks."
-                    }
-                    [group, peaks_by_caller[chosen][0][2]]
-                }
+            ch_samples_manifest_single = ch_samples_manifest.first()
+            ch_peaks_manifest_single = ch_peaks_manifest.first()
+            ch_chrom_sizes_single = ch_chrom_sizes.collect().map { it[0] }
 
-            ch_span_inputs = ch_span_records_file
-                .join(ch_span_peaks)
-                .map { group, records_file, peaks_path -> [ group, records_file, peaks_path ] }
+            ch_span_inputs = ch_span_design
+                .combine(ch_samples_manifest_single)
+                .combine(ch_peaks_manifest_single)
+                .combine(ch_chrom_sizes_single)
+                .map { group, samples_manifest, peaks_manifest, chrom_sizes -> [ group, samples_manifest, peaks_manifest, chrom_sizes ] }
 
             SPAN_DIFF_RUN (
                 ch_span_inputs,
@@ -384,27 +389,34 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 params.span_diff_gap,
                 params.span_diff_bin,
                 params.span_fallback_backend,
+                use_spikein,
+                params.differential_allow_partial,
+                span_caller_priority,
                 params.omnipeaks_jar ? file(params.omnipeaks_jar) : null,
                 params.span_diff_java_heap
             )
             ch_versions = ch_versions.mix(SPAN_DIFF_RUN.out.versions)
 
-            ch_span_annot = SPAN_DIFF_RUN.out.differential
-                .combine(ch_gene_bed_single)
-                .map { tuple, gene_bed ->
-                    def group = tuple[0]
-                    def regions = tuple[1]
-                    [ 'span', group, 'NA', regions, gene_bed, "03_span/${group}/span.differential.annotated.tsv" ]
-                }
+            if (annotation_enabled) {
+                ch_span_annot = SPAN_DIFF_RUN.out.differential
+                    .combine(ch_gene_bed_single)
+                    .map { tuple, gene_bed ->
+                        def group = tuple[0]
+                        def regions = tuple[1]
+                        [ 'span', group, 'NA', regions, gene_bed, "03_span/${group}/span.differential.annotated.tsv" ]
+                    }
 
-            ch_annotation_requests = ch_annotation_requests.mix(ch_span_annot)
+                ch_annotation_requests = ch_annotation_requests.mix(ch_span_annot)
+            }
             ch_span_summary = SPAN_DIFF_RUN.out.summary.map { it[1] }
         }
 
-        ANNOTATE_REGIONS (
-            ch_annotation_requests
-        )
-        ch_versions = ch_versions.mix(ANNOTATE_REGIONS.out.versions)
+        if (annotation_enabled) {
+            ANNOTATE_REGIONS (
+                ch_annotation_requests
+            )
+            ch_versions = ch_versions.mix(ANNOTATE_REGIONS.out.versions)
+        }
 
         ch_summary_files = ch_diffbind_summary.mix(ch_chipbinner_summary).mix(ch_span_summary)
         DIFFERENTIAL_SUMMARY (

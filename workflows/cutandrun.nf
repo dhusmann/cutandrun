@@ -663,6 +663,7 @@ workflow CUTANDRUN {
     }
 
     if (params.run_peak_calling && (params.run_diffbind || params.run_chipbinner || params.run_span_diff || params.differential_publish_manifest_only)) {
+        ch_gene_bed_annotation = params.gene_bed ? PREPARE_GENOME.out.bed : Channel.empty()
         DIFFERENTIAL_PEAK_CALLING (
             ch_samtools_bam,
             ch_samtools_bai,
@@ -670,7 +671,8 @@ workflow CUTANDRUN {
             ch_peaks_all,
             ch_scale_factors,
             PREPARE_GENOME.out.chrom_sizes,
-            PREPARE_GENOME.out.bed,
+            ch_gene_bed_annotation,
+            PREPARE_GENOME.out.gtf,
             ch_blacklist,
             Channel.empty(),
             Channel.empty(),

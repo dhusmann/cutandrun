@@ -265,18 +265,27 @@ if (!use_spikein) {
     if (!is.null(coord_cols$end)) {
         res_df$end <- res_df[[coord_cols$end]]
     }
+    if (!"chr" %in% colnames(res_df)) {
+        res_df$chr <- NA
+    }
+    if (!"start" %in% colnames(res_df)) {
+        res_df$start <- NA
+    }
+    if (!"end" %in% colnames(res_df)) {
+        res_df$end <- NA
+    }
 
     if (!"log2FC" %in% colnames(res_df)) {
         if ("Fold" %in% colnames(res_df)) {
             res_df$log2FC <- res_df$Fold
         } else if ("fold" %in% colnames(res_df)) {
             res_df$log2FC <- res_df$fold
+        } else {
+            res_df$log2FC <- NA_real_
         }
     }
     if (!"FDR" %in% colnames(res_df)) {
-        if ("FDR" %in% colnames(res_df)) {
-            res_df$FDR <- res_df$FDR
-        }
+        res_df$FDR <- NA_real_
     }
 
     write.table(res_df, paste0(opt$prefix, ".results.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)

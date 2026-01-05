@@ -15,6 +15,13 @@ workflow DIFFERENTIAL_ONLY {
     def samples_manifest = "${manifest_dir}/differential_manifest.samples.tsv"
     def peaks_manifest = "${manifest_dir}/differential_manifest.peaks.tsv"
 
+    if (!file(samples_manifest).exists()) {
+        exit 1, "Missing samples manifest: ${samples_manifest}"
+    }
+    if (!file(peaks_manifest).exists()) {
+        exit 1, "Missing peaks manifest: ${peaks_manifest}"
+    }
+
     ch_samples_manifest = Channel.fromPath(samples_manifest, checkIfExists: true)
     ch_peaks_manifest = Channel.fromPath(peaks_manifest, checkIfExists: true)
 

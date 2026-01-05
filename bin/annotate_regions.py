@@ -36,6 +36,8 @@ def main():
 
     rows = read_tsv(args.regions)
     if not rows:
+        with open(args.out, "w") as handle:
+            handle.write("")
         return
 
     header = None

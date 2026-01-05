@@ -182,6 +182,9 @@ workflow DIFFERENTIAL_PEAK_CALLING {
 
         ch_gene_bed_single = ch_gene_bed.first()
 
+        def contrast_labels = params.differential_contrast.split(',').collect { it.trim() }
+        ch_samples_rows_contrast = ch_samples_rows.filter { row -> contrast_labels.contains(row.condition) }
+
         def diff_use_spikein = params.differential_use_spikein ? params.differential_use_spikein.toString().toLowerCase() : 'auto'
         def use_spikein = (diff_use_spikein == 'true') || (diff_use_spikein == 'auto' && params.normalisation_mode == 'Spikein')
 
@@ -190,7 +193,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 .filter { row -> row.caller != 'NA' && row.status == 'RUN' && row.eligible_diffbind == 'true' }
                 .map { row -> [ [row.group, row.caller], row ] }
 
-            ch_sample_peak_records = ch_samples_rows
+            ch_sample_peak_records = ch_samples_rows_contrast
                 .map { row -> [row.sample_id, row] }
                 .join(ch_peaks_rows.map { row -> [row.sample_id, row] })
                 .map { sample_id, srow, prow ->
@@ -261,7 +264,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 .filter { row -> row.caller == 'NA' && row.status == 'RUN' && row.eligible_chipbinner == 'true' }
                 .map { row -> [row.group, row] }
 
-            ch_chip_records = ch_samples_rows
+            ch_chip_records = ch_samples_rows_contrast
                 .map { row -> [row.group, row] }
                 .groupTuple(by: [0])
                 .join(ch_chip_design)
@@ -323,7 +326,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 .filter { row -> row.caller == 'NA' && row.status == 'RUN' && row.eligible_span == 'true' }
                 .map { row -> [row.group, row] }
 
-            ch_span_records = ch_samples_rows
+            ch_span_records = ch_samples_rows_contrast
                 .map { row -> [row.group, row] }
                 .groupTuple(by: [0])
                 .join(ch_span_design)

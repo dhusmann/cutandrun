@@ -17,17 +17,19 @@ process DIFFBIND_RUN {
     val norm_method
     val extra_params
     val export_sheets
+    val allow_partial
 
     output:
-    tuple val(group), val(caller), path("diffbind.results.tsv"), emit: results
-    tuple val(group), val(caller), path("diffbind.significant.bed"), emit: bed
-    tuple val(group), val(caller), path("diffbind.significant_up.bed"), emit: bed_up
-    tuple val(group), val(caller), path("diffbind.significant_down.bed"), emit: bed_down
+    tuple val(group), val(caller), path("diffbind.results.tsv", optional: true), emit: results
+    tuple val(group), val(caller), path("diffbind.significant.bed", optional: true), emit: bed
+    tuple val(group), val(caller), path("diffbind.significant_up.bed", optional: true), emit: bed_up
+    tuple val(group), val(caller), path("diffbind.significant_down.bed", optional: true), emit: bed_down
     tuple val(group), val(caller), path("diffbind.summary.tsv"), emit: summary
     tuple val(group), val(caller), path("diffbind.samplesheet.csv"), emit: samplesheet
-    tuple val(group), val(caller), path("diffbind.normalization_factors.tsv"), emit: norm_factors_out
-    tuple val(group), val(caller), path("diffbind.dba.rds"), emit: dba
-    tuple val(group), val(caller), path("plots"), emit: plots
+    tuple val(group), val(caller), path("diffbind.normalization_factors.tsv", optional: true), emit: norm_factors_out
+    tuple val(group), val(caller), path("diffbind.dba.rds", optional: true), emit: dba
+    tuple val(group), val(caller), path("diffbind.error.txt", optional: true), emit: error
+    tuple val(group), val(caller), path("plots", optional: true), emit: plots
     path "versions.yml", emit: versions
 
     when:
@@ -51,7 +53,8 @@ process DIFFBIND_RUN {
         --summits ${summits} \
         --norm_method ${norm_method} \
         ${extra_arg} \
-        --export_sheets ${export_sheets}
+        --export_sheets ${export_sheets} \
+        --allow_partial ${allow_partial}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

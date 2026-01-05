@@ -242,7 +242,8 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 params.diffbind_summits,
                 params.diffbind_norm_method,
                 params.diffbind_extra_params ? file(params.diffbind_extra_params).toString() : '',
-                params.export_diffbind_sheets
+                params.export_diffbind_sheets,
+                params.differential_allow_partial
             )
             ch_versions = ch_versions.mix(DIFFBIND_RUN.out.versions)
 

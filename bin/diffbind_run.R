@@ -102,9 +102,8 @@ recenter <- as_bool(params[["recenter"]])
 summits <- as.integer(params[["summits"]])
 norm_method <- params[["norm_method"]]
 export_sheets <- as_bool(params[["export_sheets"]])
+allow_partial <- as_bool(params[["allow_partial"]])
 extra_params_path <- params[["extra_params"]]
-extra_params <- read_extra_params(extra_params_path)
-
 use_spikein <- as_bool(params[["use_spikein"]])
 
 if (is.null(records_path) || is.null(outdir)) {
@@ -118,10 +117,6 @@ if (is.na(summits)) summits <- 0
 
 if (!dir.exists(outdir)) {
     dir.create(outdir, recursive = TRUE)
-}
-plots_dir <- file.path(outdir, "plots")
-if (!dir.exists(plots_dir)) {
-    dir.create(plots_dir, recursive = TRUE)
 }
 
 records <- read.delim(records_path, stringsAsFactors = FALSE, check.names = FALSE)
@@ -139,88 +134,111 @@ samplesheet <- data.frame(
 )
 
 samplesheet_path <- file.path(outdir, "diffbind.samplesheet.csv")
-if (export_sheets) {
-    write.csv(samplesheet, samplesheet_path, row.names = FALSE)
-} else {
-    write.csv(samplesheet, samplesheet_path, row.names = FALSE)
+write.csv(samplesheet, samplesheet_path, row.names = FALSE)
+
+contrast_labels <- strsplit(contrast, ",")[[1]]
+contrast_labels <- trimws(contrast_labels)
+if (length(contrast_labels) != 2) {
+    stop("contrast must contain exactly two comma-separated labels")
 }
 
-write_stub <- function() {
-    peaks_file <- samplesheet$Peaks[1]
-    regions <- data.frame()
-    if (!is.null(peaks_file) && file.exists(peaks_file)) {
-        peak_rows <- tryCatch({
-            read.delim(peaks_file, header = FALSE, stringsAsFactors = FALSE)
-        }, error = function(e) {
-            NULL
-        })
-        if (!is.null(peak_rows) && nrow(peak_rows) > 0) {
-            peak_rows <- peak_rows[, 1:3]
-            colnames(peak_rows) <- c("chr", "start", "end")
-            regions <- peak_rows
-        }
-    }
-
-    if (nrow(regions) == 0) {
-        regions <- data.frame(chr = character(), start = integer(), end = integer())
-    }
-
-    results <- data.frame(
-        chr = regions$chr,
-        start = regions$start,
-        end = regions$end,
-        log2FC = rep(0.0, nrow(regions)),
-        pval = rep(1.0, nrow(regions)),
-        FDR = rep(1.0, nrow(regions)),
-        stringsAsFactors = FALSE
-    )
-
-    write.table(results, file = file.path(outdir, "diffbind.results.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
-
-    sig <- results[results$FDR <= fdr & abs(results$log2FC) >= lfc, ]
-    write.table(sig[, c("chr", "start", "end")], file = file.path(outdir, "diffbind.significant.bed"), sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
-    write.table(sig[sig$log2FC >= lfc, c("chr", "start", "end")], file = file.path(outdir, "diffbind.significant_up.bed"), sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
-    write.table(sig[sig$log2FC <= -lfc, c("chr", "start", "end")], file = file.path(outdir, "diffbind.significant_down.bed"), sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
-
+write_summary <- function(status, reason, n_tested = 0, n_fdr_pass = 0, n_up = 0, n_down = 0) {
     summary <- data.frame(
         caller = caller,
         group = group,
-        treated = strsplit(contrast, ",")[[1]][1],
-        control = strsplit(contrast, ",")[[1]][2],
-        n_tested = nrow(results),
-        n_fdr_pass = nrow(sig),
-        n_up = sum(sig$log2FC >= lfc),
-        n_down = sum(sig$log2FC <= -lfc),
-        status = "RUN",
-        reason = "ok",
+        treated = contrast_labels[1],
+        control = contrast_labels[2],
+        n_tested = n_tested,
+        n_fdr_pass = n_fdr_pass,
+        n_up = n_up,
+        n_down = n_down,
+        status = status,
+        reason = reason,
         stringsAsFactors = FALSE
     )
     write.table(summary, file = file.path(outdir, "diffbind.summary.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
+}
 
-    if (use_spikein && "spikein_scale_factor" %in% colnames(records)) {
-        factors <- suppressWarnings(as.numeric(records$spikein_scale_factor))
-        if (any(!is.na(factors))) {
-            size_factors <- ifelse(factors == 0, 1, 1 / factors)
-            norm_out <- data.frame(sample_id = records$sample_id, size_factor = size_factors, stringsAsFactors = FALSE)
-            write.table(norm_out, file = file.path(outdir, "diffbind.normalization_factors.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
+write_error <- function(message) {
+    writeLines(message, con = file.path(outdir, "diffbind.error.txt"))
+}
+
+fail_or_record <- function(status, reason, message) {
+    if (allow_partial) {
+        if (identical(status, "FAIL") && !is.null(message) && nzchar(message)) {
+            write_error(message)
+        }
+        write_summary(status, reason)
+        quit(save = "no")
+    }
+    stop(message)
+}
+
+check_peaks <- function(paths) {
+    issues <- list(missing = character(), empty = character())
+    if (is.null(paths)) {
+        return(issues)
+    }
+    for (path in paths) {
+        if (is.na(path) || !nzchar(path)) {
+            issues$missing <- c(issues$missing, "<missing>")
+            next
+        }
+        if (!file.exists(path)) {
+            issues$missing <- c(issues$missing, path)
+            next
+        }
+        lines <- tryCatch(readLines(path, n = 2, warn = FALSE), error = function(e) character())
+        nonempty <- lines[!grepl("^\\s*$|^#", lines)]
+        if (length(nonempty) == 0) {
+            issues$empty <- c(issues$empty, path)
         }
     }
+    issues
 }
 
-use_diffbind <- FALSE
-if (requireNamespace("DiffBind", quietly = TRUE)) {
-    use_diffbind <- TRUE
+peaks_issues <- check_peaks(samplesheet$Peaks)
+if (length(peaks_issues$missing) > 0 || length(peaks_issues$empty) > 0) {
+    reason <- if (length(peaks_issues$missing) > 0) "missing_peaks" else "empty_peaks"
+    message_parts <- c()
+    if (length(peaks_issues$missing) > 0) {
+        message_parts <- c(message_parts, sprintf("missing peak files: %s", paste(unique(peaks_issues$missing), collapse = ", ")))
+    }
+    if (length(peaks_issues$empty) > 0) {
+        message_parts <- c(message_parts, sprintf("empty peak files: %s", paste(unique(peaks_issues$empty), collapse = ", ")))
+    }
+    detail <- paste(message_parts, collapse = "; ")
+    status <- if (allow_partial) "SKIP" else "FAIL"
+    fail_or_record(status, reason, detail)
 }
 
-if (!use_diffbind) {
-    write_stub()
-    quit(save = "no")
+if (!requireNamespace("DiffBind", quietly = TRUE)) {
+    fail_or_record("FAIL", "diffbind_unavailable", "DiffBind package not available.")
 }
 
-# Best-effort DiffBind execution
+call_diffbind <- function(fun_name, args) {
+    if (!exists(fun_name, envir = asNamespace("DiffBind"), inherits = FALSE)) {
+        stop(sprintf("DiffBind function %s is not available.", fun_name))
+    }
+    fun <- get(fun_name, envir = asNamespace("DiffBind"))
+    formal_names <- names(formals(fun))
+    args <- args[names(args) %in% formal_names]
+    do.call(fun, args)
+}
+
+plot_to_pdf <- function(filename, fun_name, args) {
+    plots_dir <- file.path(outdir, "plots")
+    if (!dir.exists(plots_dir)) {
+        dir.create(plots_dir, recursive = TRUE)
+    }
+    pdf(file.path(plots_dir, filename))
+    on.exit(dev.off(), add = TRUE)
+    call_diffbind(fun_name, args)
+}
+
 tryCatch({
     suppressPackageStartupMessages(library(DiffBind))
-    extra_params <- resolve_constants(extra_params)
+    extra_params <- resolve_constants(read_extra_params(extra_params_path))
 
     dba_args <- utils::modifyList(list(sampleSheet = samplesheet), extra_params_for(extra_params, "dba"))
     dba_obj <- do.call(dba, dba_args)
@@ -244,13 +262,17 @@ tryCatch({
         dba_obj <- do.call(dba.normalize, norm_args)
     }
 
-    contrast_labels <- strsplit(contrast, ",")[[1]]
     contrast_args <- utils::modifyList(list(DBA = dba_obj, categories = DBA_CONDITION, group1 = contrast_labels[1], group2 = contrast_labels[2]), extra_params_for(extra_params, "dba_contrast"))
     dba_obj <- do.call(dba.contrast, contrast_args)
 
     method_flag <- ifelse(toupper(backend) == "EDGER", DBA_EDGER, DBA_DESEQ2)
     analyze_args <- utils::modifyList(list(DBA = dba_obj, method = method_flag), extra_params_for(extra_params, "dba_analyze"))
     dba_obj <- do.call(dba.analyze, analyze_args)
+
+    plot_to_pdf("PCA.pdf", "dba.plotPCA", list(DBA = dba_obj, attributes = DBA_CONDITION, label = DBA_ID))
+    plot_to_pdf("correlation_heatmap.pdf", "dba.plotHeatmap", list(DBA = dba_obj, correlations = TRUE))
+    plot_to_pdf("MA.pdf", "dba.plotMA", list(DBA = dba_obj, contrast = 1))
+    plot_to_pdf("volcano.pdf", "dba.plotVolcano", list(DBA = dba_obj, contrast = 1))
 
     report_args <- utils::modifyList(list(DBA = dba_obj, th = fdr, fold = lfc), extra_params_for(extra_params, "dba_report"))
     report <- do.call(dba.report, report_args)
@@ -271,39 +293,17 @@ tryCatch({
     write.table(sig[sig$log2FC >= lfc, c("chr", "start", "end")], file = file.path(outdir, "diffbind.significant_up.bed"), sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
     write.table(sig[sig$log2FC <= -lfc, c("chr", "start", "end")], file = file.path(outdir, "diffbind.significant_down.bed"), sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
 
-    summary <- data.frame(
-        caller = caller,
-        group = group,
-        treated = contrast_labels[1],
-        control = contrast_labels[2],
+    write_summary(
+        status = "RUN",
+        reason = "ok",
         n_tested = nrow(results_out),
         n_fdr_pass = nrow(sig),
         n_up = sum(sig$log2FC >= lfc),
-        n_down = sum(sig$log2FC <= -lfc),
-        status = "RUN",
-        reason = "ok",
-        stringsAsFactors = FALSE
+        n_down = sum(sig$log2FC <= -lfc)
     )
-    write.table(summary, file = file.path(outdir, "diffbind.summary.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
 
     saveRDS(dba_obj, file = file.path(outdir, "diffbind.dba.rds"))
 
 }, error = function(e) {
-    message("DiffBind failed, falling back to stub output: ", e$message)
-    write_stub()
+    fail_or_record("FAIL", "diffbind_error", e$message)
 })
-
-norm_path <- file.path(outdir, "diffbind.normalization_factors.tsv")
-if (!file.exists(norm_path)) {
-    norm_out <- data.frame(
-        sample_id = records$sample_id,
-        size_factor = rep(NA, nrow(records)),
-        stringsAsFactors = FALSE
-    )
-    write.table(norm_out, file = norm_path, sep = "\t", quote = FALSE, row.names = FALSE)
-}
-
-dba_path <- file.path(outdir, "diffbind.dba.rds")
-if (!file.exists(dba_path)) {
-    file.create(dba_path)
-}

@@ -449,6 +449,7 @@ The merge function from [BEDtools](https://github.com/arq5x/bedtools2) is used t
   - `differential_manifest.peaks.tsv`: per-sample per-caller peak paths and formats.
   - `differential_manifest.design.tsv`: eligibility and status table for each comparison.
   - `chipbinner_input_<group>_<condition>.bam(.bai)`: pooled input/IgG BAMs when `--chipbinner_use_input` is enabled.
+  - `chipbinner_windows_cache/windows.<genome>.<bin>.<blacklistHash>.bed`: cached ChIPBinner windows by genome/bin/blacklist.
 - `03_peak_calling/08_differential/01_diffbind/<caller>/<group>/`
   - `diffbind.results.tsv`: full DiffBind results.
   - `diffbind.results.annotated.tsv`: DiffBind results annotated with nearest gene.
@@ -456,6 +457,9 @@ The merge function from [BEDtools](https://github.com/arq5x/bedtools2) is used t
   - `diffbind.summary.tsv`: one-row summary for MultiQC.
 - `03_peak_calling/08_differential/02_chipbinner/<group>/`
   - `chipbinner.*.tsv` and `chipbinner.*.csv`: ChIPBinner matrices and summaries.
+  - `chipbinner.normalization_factors.tsv`: per-sample scale/size factors used for normalization.
+  - `chipbinner.clusters.best.tsv`, `chipbinner.clusters.2cluster.tsv`, `chipbinner.clusters.3cluster.tsv`: standardized cluster assignments.
+  - `chipbinner.error.txt`: emitted when `--differential_allow_partial` skips a failed run.
   - `chipbinner.differential.annotated.tsv`: annotated differential bins.
   - `chipbinner.summary.tsv`: one-row summary for MultiQC.
 - `03_peak_calling/08_differential/03_span/<group>/`

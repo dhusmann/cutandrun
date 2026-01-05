@@ -5,7 +5,7 @@ process CHIPBINNER_RUN {
     container "quay.io/biocontainers/python:3.8.3"
 
     input:
-    tuple val(group), path(records), path(chrom_sizes)
+    tuple val(group), path(records), path(chrom_sizes), path(windows)
     val contrast
     val bin_size
     val windows_dir
@@ -23,25 +23,31 @@ process CHIPBINNER_RUN {
     val allow_partial
 
     output:
-    tuple val(group), path("chipbinner.samplesheet.csv"), emit: samplesheet
-    tuple val(group), path("chipbinner.windows.bed"), emit: windows
-    tuple val(group), path("chipbinner.bin_counts.tsv"), emit: counts
-    tuple val(group), path("chipbinner.normalized_matrix.tsv"), emit: normalized
-    tuple val(group), path("chipbinner.hdbscan_grid_summary.tsv"), emit: grid
-    tuple val(group), path("hdbscan_grid"), emit: grid_outputs
-    tuple val(group), path("chipbinner.clusters.tsv"), emit: clusters
-    tuple val(group), path("chipbinner.differential.tsv"), emit: differential
+    tuple val(group), path("chipbinner.samplesheet.csv"), emit: samplesheet, optional: true
+    tuple val(group), path("chipbinner.windows.bed"), emit: windows, optional: true
+    tuple val(group), path("chipbinner.bin_counts.tsv"), emit: counts, optional: true
+    tuple val(group), path("chipbinner.normalized_matrix.tsv"), emit: normalized, optional: true
+    tuple val(group), path("chipbinner.normalization_factors.tsv"), emit: norm_factors, optional: true
+    tuple val(group), path("chipbinner.hdbscan_grid_summary.tsv"), emit: grid, optional: true
+    tuple val(group), path("hdbscan_grid"), emit: grid_outputs, optional: true
+    tuple val(group), path("chipbinner.clusters.tsv"), emit: clusters, optional: true
+    tuple val(group), path("chipbinner.clusters.best.tsv"), emit: clusters_best, optional: true
+    tuple val(group), path("chipbinner.clusters.2cluster.tsv"), emit: clusters_two, optional: true
+    tuple val(group), path("chipbinner.clusters.3cluster.tsv"), emit: clusters_three, optional: true
+    tuple val(group), path("chipbinner.differential.tsv"), emit: differential, optional: true
     tuple val(group), path("chipbinner.summary.tsv"), emit: summary
-    tuple val(group), path("plots"), emit: plots
-    tuple val(group), path("enrichment"), emit: enrichment
+    tuple val(group), path("chipbinner.error.txt"), emit: error, optional: true
+    tuple val(group), path("plots"), emit: plots, optional: true
+    tuple val(group), path("enrichment"), emit: enrichment, optional: true
     path "versions.yml", emit: versions
 
     when:
     task.ext.when == null || task.ext.when
 
     script:
-    def windows_arg = windows_dir ? "--windows-dir ${windows_dir}" : ''
-    def blacklist_arg = blacklist ? "--blacklist ${blacklist}" : ''
+    def windows_arg = windows ? "--windows ${windows}" : ''
+    def windows_dir_arg = (!windows && windows_dir) ? "--windows-dir ${windows_dir}" : ''
+    def blacklist_arg = (!windows && blacklist) ? "--blacklist ${blacklist}" : ''
     def use_input_arg = use_input ? "--use-input" : ''
     def use_spikein_arg = use_spikein ? "--use-spikein" : ''
     def functional_arg = functional_db ? "--functional-db ${functional_db}" : ''
@@ -54,6 +60,7 @@ process CHIPBINNER_RUN {
         --chrom-sizes ${chrom_sizes} \
         --bin-size ${bin_size} \
         ${windows_arg} \
+        ${windows_dir_arg} \
         ${blacklist_arg} \
         ${use_input_arg} \
         ${use_spikein_arg} \

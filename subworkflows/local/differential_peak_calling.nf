@@ -11,6 +11,7 @@ include { RECORDS_TO_TSV as RECORDS_TO_TSV_DIFFBIND } from "../../modules/local/
 include { RECORDS_TO_TSV as RECORDS_TO_TSV_CHIPBINNER } from "../../modules/local/records_to_tsv"
 include { DIFFBIND_RUN } from "../../modules/local/diffbind_run"
 include { CHIPBINNER_RUN } from "../../modules/local/chipbinner_run"
+include { CHIPBINNER_WINDOWS_CACHE } from "../../modules/local/chipbinner_windows_cache"
 include { POOL_IGG_CONTROLS } from "../../modules/local/pool_igg_controls"
 include { SPAN_DIFF_RUN } from "../../modules/local/span_diff_run"
 include { SPAN_POOLING_MANIFEST } from "../../modules/local/span_pooling_manifest"
@@ -44,6 +45,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
     ch_diffbind_summary = Channel.empty()
     ch_chipbinner_summary = Channel.empty()
     ch_span_summary = Channel.empty()
+    ch_chipbinner_windows = Channel.empty()
     ch_summary_files = Channel.empty()
     ch_samples_manifest = Channel.empty()
     ch_peaks_manifest = Channel.empty()
@@ -402,6 +404,17 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 .filter { row -> row.caller == 'NA' && row.status == 'RUN' && row.eligible_chipbinner == 'true' }
                 .map { row -> [row.group, row] }
 
+            def chipbinner_windows_dir = params.chipbinner_windows_dir ? file(params.chipbinner_windows_dir).toString() : ''
+            def chipbinner_blacklist = params.blacklist ? file(params.blacklist).toString() : ''
+            CHIPBINNER_WINDOWS_CACHE (
+                ch_chrom_sizes.collect().map { it[0] },
+                params.chipbinner_bin_size,
+                chipbinner_windows_dir,
+                chipbinner_blacklist
+            )
+            ch_versions = ch_versions.mix(CHIPBINNER_WINDOWS_CACHE.out.versions)
+            ch_chipbinner_windows = CHIPBINNER_WINDOWS_CACHE.out.windows.first()
+
             ch_chip_records = ch_samples_rows_contrast
                 .map { row -> [row.group, row] }
                 .groupTuple(by: [0])
@@ -424,18 +437,17 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             ch_chip_records_file = RECORDS_TO_TSV_CHIPBINNER.out.tsv
                 .map { group, caller, records_file -> [group, records_file] }
 
-            ch_chrom_sizes_single = ch_chrom_sizes.collect().map { it[0] }
-
             ch_chip_inputs = ch_chip_records_file
-                .combine(ch_chrom_sizes_single)
-                .map { record, chrom_sizes -> [ record[0], record[1], chrom_sizes ] }
+                .combine(ch_chrom_sizes.collect().map { it[0] })
+                .combine(ch_chipbinner_windows)
+                .map { record, chrom_sizes, windows -> [ record[0], record[1], chrom_sizes, windows ] }
 
             CHIPBINNER_RUN (
                 ch_chip_inputs,
                 params.differential_contrast,
                 params.chipbinner_bin_size,
-                params.chipbinner_windows_dir ? file(params.chipbinner_windows_dir).toString() : '',
-                params.blacklist ? file(params.blacklist).toString() : '',
+                '',
+                '',
                 params.chipbinner_use_input,
                 use_spikein,
                 params.chipbinner_pseudocount,

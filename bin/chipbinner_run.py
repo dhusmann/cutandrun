@@ -2,6 +2,7 @@
 import argparse
 import csv
 import glob
+import hashlib
 import math
 import os
 import subprocess
@@ -36,6 +37,7 @@ def parse_args():
     parser.add_argument("--contrast", required=True)
     parser.add_argument("--chrom-sizes", required=True)
     parser.add_argument("--bin-size", type=int, required=True)
+    parser.add_argument("--windows")
     parser.add_argument("--windows-dir")
     parser.add_argument("--blacklist")
     parser.add_argument("--use-input", action="store_true")
@@ -71,6 +73,25 @@ def parse_float(value, default=None):
         return default
 
 
+def genome_id_from_path(path):
+    base = os.path.basename(path)
+    if base.endswith(".sizes"):
+        base = base[: -len(".sizes")]
+    else:
+        base = os.path.splitext(base)[0]
+    return base or "genome"
+
+
+def hash_file(path):
+    if not path or not os.path.exists(path):
+        return None
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(8192), b""):
+            digest.update(chunk)
+    return digest.hexdigest()[:12]
+
+
 def ensure_dir(path):
     if path:
         os.makedirs(path, exist_ok=True)
@@ -82,17 +103,30 @@ def run_cmd(cmd, stdout=None):
         raise RuntimeError(f"Command failed ({' '.join(cmd)}): {result.stderr.strip()}")
 
 
-def choose_windows_file(windows_dir, bin_size):
+def choose_windows_file(windows_path, windows_dir, bin_size, chrom_sizes=None, blacklist=None):
+    if windows_path:
+        return windows_path
     if not windows_dir:
         return None
     if os.path.isfile(windows_dir):
         return windows_dir
     if os.path.isdir(windows_dir):
-        candidates = sorted(glob.glob(os.path.join(windows_dir, f"*{bin_size}*.bed")))
-        if not candidates:
-            candidates = sorted(glob.glob(os.path.join(windows_dir, "*.bed")))
-        if candidates:
-            return candidates[0]
+        genome_id = genome_id_from_path(chrom_sizes) if chrom_sizes else None
+        blacklist_hash = hash_file(blacklist) if blacklist else None
+        preferred = []
+        if genome_id:
+            if blacklist_hash:
+                preferred.append(f"windows.{genome_id}.{bin_size}.{blacklist_hash}.bed")
+            preferred.append(f"windows.{genome_id}.{bin_size}.bed")
+        else:
+            preferred.append(f"windows.{bin_size}.bed")
+        for name in preferred:
+            candidate = os.path.join(windows_dir, name)
+            if os.path.exists(candidate):
+                return candidate
+        raise RuntimeError(
+            f"No windows BED found in {windows_dir}. Expected one of: {', '.join(preferred)}"
+        )
     return None
 
 
@@ -210,21 +244,46 @@ def write_matrix(counts_df, sample_ids, out_path):
 
 def normalize_counts(counts_df, sample_ids, samples, use_spikein, pseudocount):
     counts = counts_df[sample_ids].astype(float)
-    scale = np.ones(len(sample_ids), dtype=float)
+    factors = []
     for idx, row in enumerate(samples):
-        if use_spikein:
-            spike = parse_float(row.get("spikein_scale_factor"))
-            if spike is not None:
-                scale[idx] *= spike
-        coeff = parse_float(row.get("ms_coeff"))
-        if coeff is not None:
-            scale[idx] *= coeff
-    counts = counts * scale
+        steps = []
+        spike_raw = row.get("spikein_scale_factor")
+        spike = parse_float(spike_raw) if use_spikein else None
+        spike_size = None
+        if spike is not None:
+            if spike == 0:
+                raise RuntimeError("Spike-in scale factor cannot be zero")
+            spike_size = 1.0 / spike
+            counts.iloc[:, idx] = counts.iloc[:, idx] / spike_size
+            steps.append("spikein")
+
+        ms_raw = row.get("ms_coeff")
+        ms_coeff = parse_float(ms_raw)
+        ms_size = None
+        if ms_coeff is not None:
+            if ms_coeff == 0:
+                raise RuntimeError("MS coefficient cannot be zero")
+            ms_size = 1.0 / ms_coeff
+            counts.iloc[:, idx] = counts.iloc[:, idx] / ms_size
+            steps.append("ms_coeff")
+
+        steps.extend(["pseudocount", "library_size_cpm"])
+        factors.append({
+            "sample_id": row.get("sample_id", ""),
+            "group": row.get("group", ""),
+            "condition": row.get("condition", ""),
+            "spikein_scale_factor": spike if spike is not None else "NA",
+            "spikein_size_factor": spike_size if spike_size is not None else "NA",
+            "ms_coeff": ms_coeff if ms_coeff is not None else "NA",
+            "ms_size_factor": ms_size if ms_size is not None else "NA",
+            "applied_steps": ",".join(steps),
+        })
+
     counts = counts + pseudocount
     library_size = counts.sum(axis=0)
     library_size[library_size == 0] = 1.0
     normalized = counts.divide(library_size, axis=1) * 1e6
-    return normalized
+    return normalized, pd.DataFrame(factors)
 
 
 def plot_pca(norm_matrix, sample_ids, samples, out_path):
@@ -520,30 +579,11 @@ def write_summary(path, group, treated, control, n_bins, n_fdr, n_up, n_down, n_
         ])
 
 
-def write_empty_outputs(outdir, group, sample_ids, treated, control, reason, status="FAIL"):
-    windows_path = os.path.join(outdir, "chipbinner.windows.bed")
-    counts_path = os.path.join(outdir, "chipbinner.bin_counts.tsv")
-    norm_path = os.path.join(outdir, "chipbinner.normalized_matrix.tsv")
-    grid_path = os.path.join(outdir, "chipbinner.hdbscan_grid_summary.tsv")
-    clusters_path = os.path.join(outdir, "chipbinner.clusters.tsv")
-    diff_path = os.path.join(outdir, "chipbinner.differential.tsv")
-    summary_path = os.path.join(outdir, "chipbinner.summary.tsv")
-    ensure_dir(os.path.join(outdir, "plots"))
-    ensure_dir(os.path.join(outdir, "enrichment"))
-
-    with open(windows_path, "w") as handle:
-        handle.write("")
-    with open(counts_path, "w") as handle:
-        handle.write("bin\t" + "\t".join(sample_ids) + "\n")
-    with open(norm_path, "w") as handle:
-        handle.write("bin\t" + "\t".join(sample_ids) + "\n")
-    with open(grid_path, "w") as handle:
-        handle.write("minPts\tminSamps\tn_clusters\tnoise_fraction\tsilhouette\tscore\tstatus\tselected\n")
-    with open(clusters_path, "w") as handle:
-        handle.write("chrom\tstart\tend\tcluster\n")
-    with open(diff_path, "w") as handle:
-        handle.write("chrom\tstart\tend\tbin_id\tlog2FC\tpval\tFDR\tcluster\tdirection\n")
-    write_summary(summary_path, group, treated, control, 0, 0, 0, 0, 0, "NA", "NA", status, reason, "NOT_RUN")
+def write_error_artifact(outdir, message):
+    error_path = os.path.join(outdir, "chipbinner.error.txt")
+    with open(error_path, "w") as handle:
+        handle.write(f"{message}\n")
+    return error_path
 
 
 def main():
@@ -551,8 +591,6 @@ def main():
     ensure_dir(args.outdir)
     plots_dir = os.path.join(args.outdir, "plots")
     enrichment_dir = os.path.join(args.outdir, "enrichment")
-    ensure_dir(plots_dir)
-    ensure_dir(enrichment_dir)
 
     contrast = [c.strip() for c in args.contrast.split(",") if c.strip()]
     if len(contrast) != 2:
@@ -591,13 +629,31 @@ def main():
             if details:
                 reason = f"{reason}:" + ";".join(details)
             if args.allow_partial:
-                write_empty_outputs(args.outdir, args.group, sample_ids, treated_label, control_label, reason, status="SKIP")
+                error_path = write_error_artifact(args.outdir, reason)
+                write_summary(
+                    os.path.join(args.outdir, "chipbinner.summary.tsv"),
+                    args.group,
+                    treated_label,
+                    control_label,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    "NA",
+                    "NA",
+                    "SKIP",
+                    f"{reason};error={os.path.basename(error_path)}",
+                    "NOT_RUN",
+                )
                 return
             raise RuntimeError(
                 f"chipbinner_use_input requested but input BAMs are missing ({'; '.join(details) or 'no input_bam values'})."
             )
 
-    windows_source = choose_windows_file(args.windows_dir, args.bin_size)
+    windows_source = choose_windows_file(
+        args.windows, args.windows_dir, args.bin_size, args.chrom_sizes, args.blacklist
+    )
     windows_path = os.path.join(args.outdir, "chipbinner.windows.bed")
     try:
         if windows_source:
@@ -617,11 +673,15 @@ def main():
         counts_df, sample_ids = compute_counts(windows_path, samples, counts_raw_path, use_input=args.use_input)
         write_matrix(counts_df, sample_ids, counts_raw_path)
 
-        norm_matrix = normalize_counts(counts_df, sample_ids, samples, args.use_spikein, args.pseudocount)
+        norm_matrix, factors_df = normalize_counts(counts_df, sample_ids, samples, args.use_spikein, args.pseudocount)
         norm_path = os.path.join(args.outdir, "chipbinner.normalized_matrix.tsv")
         norm_matrix.insert(0, "bin_id", counts_df["bin_id"])
         norm_matrix.to_csv(norm_path, sep="\t", index=False)
 
+        factors_path = os.path.join(args.outdir, "chipbinner.normalization_factors.tsv")
+        factors_df.to_csv(factors_path, sep="\t", index=False)
+
+        ensure_dir(plots_dir)
         plot_pca(norm_matrix.drop(columns=["bin_id"]).values, sample_ids, samples, os.path.join(plots_dir, "chipbinner.pca.png"))
         plot_correlation(norm_matrix.drop(columns=["bin_id"]).values, sample_ids, os.path.join(plots_dir, "chipbinner.correlation.png"))
 
@@ -632,10 +692,11 @@ def main():
         chosen, grid_summary_path = hdbscan_grid(norm_matrix.drop(columns=["bin_id"]), windows_df, minpts_list, minsamps_list, grid_dir, grid_summary_path)
 
         # chosen clusters
-        clusters_path = os.path.join(args.outdir, "chipbinner.clusters.tsv")
         chosen_df = windows_df.copy()
         chosen_df["cluster"] = chosen["labels"]
+        clusters_path = os.path.join(args.outdir, "chipbinner.clusters.tsv")
         chosen_df.to_csv(clusters_path, sep="\t", index=False)
+        chosen_df.to_csv(os.path.join(args.outdir, "chipbinner.clusters.best.tsv"), sep="\t", index=False)
 
         # Differential with ROTS
         rots_out = os.path.join(args.outdir, "chipbinner.rots.tsv")
@@ -658,6 +719,38 @@ def main():
         })
         diff_df = diff_df.merge(rots_df, on="bin_id", how="left")
         diff_df["cluster"] = chosen_df["cluster"].values
+
+        # Standardized cluster views based on cluster mean log2FC (|mean| < 0.25 => stable)
+        STABLE_LFC_THRESHOLD = 0.25
+        cluster_means = {}
+        for cluster_id in sorted(set(chosen_df["cluster"]) - {-1}):
+            cluster_means[cluster_id] = float(np.mean(log2fc[chosen_df["cluster"] == cluster_id]))
+
+        def label_two(cluster_id):
+            if cluster_id == -1:
+                return "noise"
+            return "treated_high" if cluster_means.get(cluster_id, 0.0) >= 0 else "control_high"
+
+        def label_three(cluster_id):
+            if cluster_id == -1:
+                return "noise"
+            mean_val = cluster_means.get(cluster_id, 0.0)
+            if mean_val >= STABLE_LFC_THRESHOLD:
+                return "treated_high"
+            if mean_val <= -STABLE_LFC_THRESHOLD:
+                return "control_high"
+            return "stable"
+
+        cluster_mean_series = chosen_df["cluster"].map(cluster_means).fillna(np.nan)
+        clusters_two = chosen_df.copy()
+        clusters_two["cluster_label"] = clusters_two["cluster"].map(label_two)
+        clusters_two["cluster_mean_log2FC"] = cluster_mean_series
+        clusters_two.to_csv(os.path.join(args.outdir, "chipbinner.clusters.2cluster.tsv"), sep="\t", index=False)
+
+        clusters_three = chosen_df.copy()
+        clusters_three["cluster_label"] = clusters_three["cluster"].map(label_three)
+        clusters_three["cluster_mean_log2FC"] = cluster_mean_series
+        clusters_three.to_csv(os.path.join(args.outdir, "chipbinner.clusters.3cluster.tsv"), sep="\t", index=False)
 
         direction = []
         for _, row in diff_df.iterrows():
@@ -688,8 +781,23 @@ def main():
 
     except Exception as exc:
         if args.allow_partial:
-            reason = str(exc)
-            write_empty_outputs(args.outdir, args.group, sample_ids, treated_label, control_label, reason)
+            error_path = write_error_artifact(args.outdir, exc)
+            write_summary(
+                os.path.join(args.outdir, "chipbinner.summary.tsv"),
+                args.group,
+                treated_label,
+                control_label,
+                0,
+                0,
+                0,
+                0,
+                0,
+                "NA",
+                "NA",
+                "SKIP",
+                f"RUNTIME_ERROR:{os.path.basename(error_path)}",
+                "NOT_RUN",
+            )
         else:
             raise
 

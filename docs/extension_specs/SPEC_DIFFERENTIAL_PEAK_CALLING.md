@@ -626,6 +626,7 @@ All differential outputs live under:
     differential_manifest.design.tsv
     chipbinner_input_<group>_<condition>.bam (optional)
     chipbinner_input_<group>_<condition>.bam.bai (optional)
+    chipbinner_windows_cache/windows.<genome>.<bin>.<blacklistHash>.bed
     span_diff_target_pooling.tsv (optional)
   01_diffbind/
     00_samplesheets/<caller>/<group>.csv
@@ -639,6 +640,11 @@ All differential outputs live under:
     <group>/
       chipbinner.*.tsv
       chipbinner.*.csv
+      chipbinner.normalization_factors.tsv
+      chipbinner.clusters.best.tsv
+      chipbinner.clusters.2cluster.tsv
+      chipbinner.clusters.3cluster.tsv
+      chipbinner.error.txt (only when allow-partial skips a failed run)
       chipbinner.summary.tsv
       plots/
       enrichment/ (optional)

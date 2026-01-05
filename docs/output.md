@@ -326,7 +326,10 @@ These tables are generated when `--normalisation_mode Spikein` to record per-sam
 
 </details>
 
-Controls are pooled per control group and condition for callers that require pooled controls (epic2/SPAN). If a matching condition is unavailable, the closest available control is used and recorded in `03_peak_calling/07_qc_tables/control_pooling_fallbacks.tsv`.
+Controls are pooled per control group and condition for callers that require pooled controls (epic2/SPAN). If a matching condition is unavailable, the closest available control is used **only when explicitly allowed**; otherwise the pipeline fails fast during samplesheet validation. The control pooling report is always written to `03_peak_calling/07_qc_tables/control_pooling_fallbacks.tsv` (header + zero or more rows) and records both fallback usage and missing-control skips with status/action fields.
+
+The report columns are:
+`sample_id`, `group`, `condition`, `caller_id`, `control_group`, `selected_control_condition`, `status`, `action`, `reason`, `pooled_control_path`.
 
 ### 6.3. <a name='Bamtobedgraph'></a>Bam to bedgraph
 

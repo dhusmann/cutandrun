@@ -41,6 +41,11 @@ def parse_args(args=None):
         "USE_CONTROL",
         help="Boolean for whether or not the user has specified the pipeline must normalise against a control",
     )
+    parser.add_argument(
+        "--allow-cross-condition-controls",
+        action="store_true",
+        help="Allow targets to use controls from other conditions when no exact condition match exists",
+    )
     return parser.parse_args(args)
 
 
@@ -63,7 +68,7 @@ def print_error(error, context="Line", context_str=""):
     sys.exit(1)
 
 
-def check_samplesheet(file_in, file_out, use_control):
+def check_samplesheet(file_in, file_out, use_control, allow_cross_condition_controls=False):
     """
     This function checks that the samplesheet follows the following structure:
 
@@ -83,6 +88,9 @@ def check_samplesheet(file_in, file_out, use_control):
     control_names_list = []
     sample_run_dict = {}
     control_condition_map = {}
+    missing_control_errors = []
+    cross_condition_warnings = []
+    legacy_na_warnings = []
 
     with open(file_in, "r") as fin:
         ## Check header
@@ -281,20 +289,95 @@ def check_samplesheet(file_in, file_out, use_control):
                     if info[-1] == "1":
                         control_condition_map.setdefault(info[0], set()).add(info[1])
 
-        # Warn on condition mismatch between targets and controls
-        for sample_key, reps in sample_run_dict.items():
-            for replicate, infos in reps.items():
-                for info in infos:
-                    if info[-1] == "0" and info[3] != "":
-                        ctrl_conditions = control_condition_map.get(info[3], set())
-                        if ctrl_conditions and info[1] not in ctrl_conditions and "NA" not in ctrl_conditions:
+        # Validate condition-specific controls for targets
+        if has_condition:
+            for sample_key, reps in sample_run_dict.items():
+                for replicate, infos in reps.items():
+                    for info in infos:
+                        if info[-1] == "0" and info[3] != "":
+                            ctrl_conditions = control_condition_map.get(info[3], set())
                             sample_id = "{}_{}_rep{}".format(info[0], info[1], info[2])
-                            print(
-                                "WARNING: No control found for target condition; will fall back to other conditions if available.\n"
-                                "Target sample_id: {} | control_group: {} | expected condition: {}".format(
-                                    sample_id, info[3], info[1]
+                            if not ctrl_conditions:
+                                missing_control_errors.append(
+                                    {
+                                        "sample_id": sample_id,
+                                        "group": info[0],
+                                        "condition": info[1],
+                                        "replicate": info[2],
+                                        "control_group": info[3],
+                                        "control_conditions": "NONE",
+                                    }
                                 )
+                                continue
+                            if info[1] in ctrl_conditions:
+                                continue
+                            if "NA" in ctrl_conditions:
+                                legacy_na_warnings.append(
+                                    {
+                                        "sample_id": sample_id,
+                                        "group": info[0],
+                                        "condition": info[1],
+                                        "replicate": info[2],
+                                        "control_group": info[3],
+                                        "control_conditions": ",".join(sorted(ctrl_conditions)),
+                                    }
+                                )
+                                continue
+                            if allow_cross_condition_controls:
+                                cross_condition_warnings.append(
+                                    {
+                                        "sample_id": sample_id,
+                                        "group": info[0],
+                                        "condition": info[1],
+                                        "replicate": info[2],
+                                        "control_group": info[3],
+                                        "control_conditions": ",".join(sorted(ctrl_conditions)),
+                                    }
+                                )
+                                continue
+                            missing_control_errors.append(
+                                {
+                                    "sample_id": sample_id,
+                                    "group": info[0],
+                                    "condition": info[1],
+                                    "replicate": info[2],
+                                    "control_group": info[3],
+                                    "control_conditions": ",".join(sorted(ctrl_conditions)),
+                                }
                             )
+
+        if missing_control_errors:
+            print("ERROR: Missing condition-matched controls for target samples (fail-fast).")
+            for entry in missing_control_errors:
+                print(
+                    " - sample_id: {sample_id} | group: {group} | condition: {condition} | replicate: {replicate} | "
+                    "control_group: {control_group} | control_conditions_found: {control_conditions}".format(**entry)
+                )
+            print(
+                "Remediation: add control rows for the missing condition(s), or set controls to legacy NA "
+                "consistently. If you intentionally want cross-condition controls, rerun with "
+                "--allow_cross_condition_controls."
+            )
+            sys.exit(1)
+
+        if legacy_na_warnings:
+            print("WARNING: Control rows with condition=NA used for targets with explicit conditions (legacy mode).")
+            for entry in legacy_na_warnings:
+                print(
+                    " - sample_id: {sample_id} | group: {group} | condition: {condition} | replicate: {replicate} | "
+                    "control_group: {control_group} | control_conditions_found: {control_conditions}".format(**entry)
+                )
+
+        if cross_condition_warnings:
+            print(
+                "WARNING: No exact condition-matched controls found; proceeding with cross-condition controls "
+                "because --allow_cross_condition_controls was set."
+            )
+            for entry in cross_condition_warnings:
+                print(
+                    " - sample_id: {sample_id} | group: {group} | condition: {condition} | replicate: {replicate} | "
+                    "control_group: {control_group} | control_conditions_found: {control_conditions}".format(**entry)
+                )
 
     ## Write validated samplesheet with appropriate columns
     if len(sample_run_dict) > 0:
@@ -333,7 +416,12 @@ def check_samplesheet(file_in, file_out, use_control):
 
 def main(args=None):
     args = parse_args(args)
-    check_samplesheet(args.FILE_IN, args.FILE_OUT, args.USE_CONTROL)
+    check_samplesheet(
+        args.FILE_IN,
+        args.FILE_OUT,
+        args.USE_CONTROL,
+        allow_cross_condition_controls=args.allow_cross_condition_controls,
+    )
 
 
 if __name__ == "__main__":

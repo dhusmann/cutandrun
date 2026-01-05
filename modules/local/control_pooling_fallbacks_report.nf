@@ -17,16 +17,19 @@ process CONTROL_POOLING_FALLBACKS_REPORT {
     task.ext.when == null || task.ext.when
 
     script:
-    def header = "sample_id\tgroup\tcondition\tcontrol_group\tcontrol_condition\tcaller\treason"
+    def header = "sample_id\tgroup\tcondition\tcaller_id\tcontrol_group\tselected_control_condition\tstatus\taction\treason\tpooled_control_path"
     def lines = records ? records.collect { record ->
         [
-            record.sample_id,
-            record.group,
-            record.condition,
-            record.control_group,
-            record.control_condition,
-            record.caller,
-            record.reason
+            record.sample_id ?: '',
+            record.group ?: '',
+            record.condition ?: '',
+            record.caller_id ?: '',
+            record.control_group ?: '',
+            record.selected_control_condition ?: '',
+            record.status ?: '',
+            record.action ?: '',
+            record.reason ?: '',
+            record.pooled_control_path ?: ''
         ].join('\t')
     }.join('\n') : ''
     """

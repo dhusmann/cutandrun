@@ -16,8 +16,9 @@ process SAMPLESHEET_CHECK {
     task.ext.when == null || task.ext.when
 
     script:
+    def allow_cross = params.allow_cross_condition_controls ? '--allow-cross-condition-controls' : ''
     """
-    check_samplesheet.py $samplesheet samplesheet.valid.csv $params.use_control
+    check_samplesheet.py $samplesheet samplesheet.valid.csv $params.use_control $allow_cross
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

@@ -362,6 +362,12 @@
                     "fa_icon": "fas fa-align-justify",
                     "description": "Specifies whether to use a control to normalise peak calls against (e.g. IgG)"
                 },
+                "allow_cross_condition_controls": {
+                    "type": "boolean",
+                    "default": false,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Allow targets to use controls from other conditions when no exact condition match exists (default: false, fail-fast)."
+                },
                 "extend_fragments": {
                     "type": "boolean",
                     "default": true,

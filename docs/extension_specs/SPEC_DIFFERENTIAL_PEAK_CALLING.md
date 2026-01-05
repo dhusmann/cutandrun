@@ -622,7 +622,7 @@ ChIPBinner parameters
 	•	--chipbinner_run_lola (bool; default: false)
 
 SPAN / OmniPeaks parameters
-	•	--omnipeaks_jar (path; required if --run_span_diff)
+	•	--omnipeaks_jar (path; required for native SPAN diff; optional for fallback)
 	•	--span_diff_mode (string; default: auto)
 	•	auto|native|fallback
 	•	--span_diff_fdr (float; default: 0.05)

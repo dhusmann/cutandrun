@@ -679,11 +679,15 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         if (span_use_fallback) {
             def span_callers = callers.findAll { it.startsWith('span_') }
             if (!span_callers) {
-                if (span_mode == 'auto' && !span_has_jar) {
-                    exit 1, "SPAN diff auto mode requested but --omnipeaks_jar missing and no SPAN peaks are available for fallback."
+                def details = span_has_jar ?
+                    'SPAN caller not in --peakcaller' :
+                    'SPAN caller not in --peakcaller; --omnipeaks_jar missing so native compare is unavailable'
+                if (params.differential_strict) {
+                    exit 1, "SPAN differential unavailable: ${details}"
                 }
+                log.warn "SPAN differential skipped: ${details}"
                 ch_skipped_records = ch_skipped_records.mix(
-                    ch_span_fallback_groups.map { rec -> [method: 'span', group: rec.group, caller: 'NA', reason: 'no_span_peaks', details: 'SPAN caller not in --peakcaller'] }
+                    ch_span_fallback_groups.map { rec -> [method: 'span', group: rec.group, caller: 'NA', reason: 'no_span_peaks', details: details] }
                 )
             } else {
                 def span_caller = span_callers[0]
@@ -779,10 +783,10 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         )
         method_beds = method_beds.mix(
             ch_chipbinner_up.map { group, file ->
-                [group: group, method: 'chipbinner_treated_enriched', caller: 'NA', path: file.toString(), span_mode_used: 'NA']
+                [group: group, method: 'chipbinner', caller: 'treated_enriched', path: file.toString(), span_mode_used: 'NA']
             },
             ch_chipbinner_down.map { group, file ->
-                [group: group, method: 'chipbinner_control_enriched', caller: 'NA', path: file.toString(), span_mode_used: 'NA']
+                [group: group, method: 'chipbinner', caller: 'control_enriched', path: file.toString(), span_mode_used: 'NA']
             }
         )
         method_beds = method_beds.mix(

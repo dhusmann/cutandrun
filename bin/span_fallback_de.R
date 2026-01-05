@@ -123,8 +123,7 @@ if ("SpikeinScaleFactor" %in% colnames(samplesheet)) {
 }
 
 if (use_spikein && (is.null(scale_factors) || any(is.na(scale_factors)))) {
-    message("Spike-in scaling requested but scale factors missing; falling back to default normalization")
-    use_spikein <- FALSE
+    stop("Spike-in scaling requested but spike-in scale factors are missing from the samplesheet.")
 }
 
 backend <- toupper(opt$backend)
@@ -179,7 +178,7 @@ write.table(up[, c("chr", "start", "end")], paste0(opt$prefix, ".significant_up.
 write.table(down[, c("chr", "start", "end")], paste0(opt$prefix, ".significant_down.bed"), sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
 
 summary <- data.frame(
-    method = "span_fallback",
+    method = "span",
     group = opt$group,
     caller = "NA",
     treated_condition = opt$treated,

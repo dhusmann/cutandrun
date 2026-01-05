@@ -51,7 +51,7 @@ process SPAN_FALLBACK_DIFF {
         --prefix span_fallback
 
     mv span_fallback.results.tsv span_fallback.differential.tsv
-    cp span_fallback.significant.bed span_fallback.differential.bed
+    awk 'BEGIN{OFS="\\t"} NR>1 {print \$1,\$2,\$3}' span_fallback.differential.tsv > span_fallback.differential.bed
 
     mkdir -p 00_manifests
     peaks_list=\$(cat span_fallback.peaks.list 2>/dev/null || true)

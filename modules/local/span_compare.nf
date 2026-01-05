@@ -90,6 +90,28 @@ process SPAN_COMPARE {
 
     cp "\$diff_file" span.differential.tsv
 
+    cat <<'AWK' > span_compare_bed.awk
+    function isnum(x) { return (x ~ /^-?[0-9]+(\\.[0-9]+)?([eE][-+]?[0-9]+)?$/) }
+    BEGIN { OFS="\\t"; header_done=0; chr_idx=1; start_idx=2; end_idx=3 }
+    /^#/ || /^track/ || /^browser/ { next }
+    !header_done {
+        if (!isnum($2)) {
+            for (i=1; i<=NF; i++) {
+                col=tolower($i)
+                if (col ~ /^(chr|chrom|seqnames|seqname)$/) chr_idx=i
+                if (col == "start") start_idx=i
+                if (col == "end") end_idx=i
+            }
+            header_done=1
+            next
+        } else {
+            header_done=1
+        }
+    }
+    { print $chr_idx,$start_idx,$end_idx }
+    AWK
+    awk -f span_compare_bed.awk "\$diff_file" > span.differential.bed
+
     : > span.significant_up.bed
     : > span.significant_down.bed
     cat <<'AWK' > span_compare_filter.awk
@@ -150,7 +172,6 @@ process SPAN_COMPARE {
     awk -v fdr_thresh="${fdr}" -v up_file="span.significant_up.bed" -v down_file="span.significant_down.bed" -v proxy_file="span.proxy_log2.txt" -f span_compare_filter.awk "\$diff_file"
 
     cat span.significant_up.bed span.significant_down.bed | awk 'NF' | sort -k1,1 -k2,2n | uniq > span.significant.bed
-    cp span.significant.bed span.differential.bed
 
     total=\$(awk 'function isnum(x) { return (x ~ /^-?[0-9]+(\\.[0-9]+)?([eE][-+]?[0-9]+)?$/) } /^#/ || /^track/ || /^browser/ { next } !header_seen { if (!isnum(\$2)) { header_seen=1; next } header_seen=1 } { n++ } END { print n+0 }' "\$diff_file")
     n_up=\$(wc -l < span.significant_up.bed | awk '{print \$1}')
@@ -187,7 +208,7 @@ process SPAN_COMPARE {
     - Direction follows treated (${meta.treated ?: 'NA'}) vs control (${meta.control ?: 'NA'}).
     END_README
     fi
-    rm -f span_compare_filter.awk span.proxy_log2.txt
+    rm -f span_compare_filter.awk span_compare_bed.awk span.proxy_log2.txt
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

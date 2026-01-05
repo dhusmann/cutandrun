@@ -420,7 +420,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             )
             ch_versions = ch_versions.mix(SPAN_COMPARE.out.versions)
             ch_summary_files = ch_summary_files.mix(SPAN_COMPARE.out.summary.map { meta, file -> file })
-            ch_span_significant = ch_span_significant.mix(SPAN_COMPARE.out.up.map { meta, file -> [meta.group, file] })
+            ch_span_significant = ch_span_significant.mix(SPAN_COMPARE.out.significant.map { meta, file -> [meta.group, file] })
 
             if (params.differential_annotate) {
                 ch_span_annotate = SPAN_COMPARE.out.tsv.map { meta, file ->
@@ -506,7 +506,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 )
                 ch_versions = ch_versions.mix(SPAN_FALLBACK_DIFF.out.versions)
                 ch_summary_files = ch_summary_files.mix(SPAN_FALLBACK_DIFF.out.summary.map { group, file -> file })
-                ch_span_significant = ch_span_significant.mix(SPAN_FALLBACK_DIFF.out.up.map { group, file -> [group, file] })
+                ch_span_significant = ch_span_significant.mix(SPAN_FALLBACK_DIFF.out.significant.map { group, file -> [group, file] })
 
                 if (params.differential_annotate) {
                     ch_span_fallback_annotate = SPAN_FALLBACK_DIFF.out.results.map { group, file ->

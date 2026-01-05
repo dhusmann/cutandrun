@@ -25,6 +25,7 @@ process SPAN_COMPARE {
     output:
     tuple val(meta), path("span.differential.tsv")     , emit: tsv
     tuple val(meta), path("span.differential.bed")     , emit: bed
+    tuple val(meta), path("span.significant.bed")     , emit: significant
     tuple val(meta), path("span.significant_up.bed")   , emit: up
     tuple val(meta), path("span.significant_down.bed") , emit: down
     tuple val(meta), path("span.summary.tsv")          , emit: summary
@@ -80,6 +81,7 @@ process SPAN_COMPARE {
     # Attempt to split by sign using column 5 if numeric
     awk 'BEGIN{OFS="\t"} {if (\$5 ~ /^-?[0-9.]+\$/) {if (\$5>0) print \$1,\$2,\$3}}' "\$diff_file" > span.significant_up.bed
     awk 'BEGIN{OFS="\t"} {if (\$5 ~ /^-?[0-9.]+\$/) {if (\$5<0) print \$1,\$2,\$3}}' "\$diff_file" > span.significant_down.bed
+    cat span.significant_up.bed span.significant_down.bed | awk 'NF' | sort -k1,1 -k2,2n | uniq > span.significant.bed
 
     total=\$(grep -v '^#' "\$diff_file" | wc -l | awk '{print \$1}')
     n_up=\$(wc -l < span.significant_up.bed | awk '{print \$1}')

@@ -28,6 +28,7 @@ process SPAN_FALLBACK_DIFF {
     output:
     tuple val(group), path("span_fallback.differential.tsv")     , emit: results
     tuple val(group), path("span_fallback.differential.bed")     , emit: bed
+    tuple val(group), path("span_fallback.significant.bed")      , emit: significant
     tuple val(group), path("span_fallback.significant_up.bed")   , emit: up
     tuple val(group), path("span_fallback.significant_down.bed") , emit: down
     tuple val(group), path("span_fallback.summary.tsv")          , emit: summary
@@ -56,7 +57,7 @@ process SPAN_FALLBACK_DIFF {
         --prefix span_fallback
 
     mv span_fallback.results.tsv span_fallback.differential.tsv
-    mv span_fallback.significant.bed span_fallback.differential.bed
+    cp span_fallback.significant.bed span_fallback.differential.bed
 
     cat <<-END_README > span_fallback.readme.txt
     SPAN fallback differential: SPAN peaks + DiffBind/DESeq2/edgeR analysis.

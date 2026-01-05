@@ -20,6 +20,54 @@ def detect_cols(header):
     return chr_col, start_col, end_col
 
 
+def parse_gtf_attributes(attr_str):
+    attrs = {}
+    for item in attr_str.strip().split(";"):
+        item = item.strip()
+        if not item:
+            continue
+        if " " not in item:
+            continue
+        key, value = item.split(" ", 1)
+        value = value.strip().strip('"')
+        attrs[key] = value
+    return attrs
+
+
+def gtf_to_tss_bed(gtf_path, out_path):
+    with gtf_path.open() as in_handle, out_path.open("w") as out_handle:
+        for line in in_handle:
+            if not line.strip() or line.startswith("#"):
+                continue
+            fields = line.rstrip().split("\t")
+            if len(fields) < 9:
+                continue
+            chrom, _, _, start, end, _, strand, _, attrs = fields
+            try:
+                start_i = int(start) - 1
+                end_i = int(end)
+            except ValueError:
+                continue
+            if start_i < 0:
+                start_i = 0
+            if strand == "+":
+                tss_start = start_i
+            elif strand == "-":
+                tss_start = max(end_i - 1, 0)
+            else:
+                continue
+            tss_end = tss_start + 1
+            attr_map = parse_gtf_attributes(attrs)
+            name = (
+                attr_map.get("gene_name")
+                or attr_map.get("gene_id")
+                or attr_map.get("transcript_id")
+                or attr_map.get("ID")
+                or "NA"
+            )
+            out_handle.write("\t".join([chrom, str(tss_start), str(tss_end), name]) + "\n")
+
+
 def run(cmd, stdout=None):
     result = subprocess.run(cmd, stdout=stdout, stderr=subprocess.PIPE, text=True)
     if result.returncode != 0:
@@ -49,25 +97,8 @@ def main():
     if args.features and Path(args.features).exists():
         features_bed = Path(args.features)
     elif args.gtf and Path(args.gtf).exists():
-        raw_bed = Path("features.raw.bed")
         tss_bed = Path("features.tss.bed")
-        run(["gtf2bed", args.gtf], stdout=raw_bed.open("w"))
-        with raw_bed.open() as in_handle, tss_bed.open("w") as out_handle:
-            for line in in_handle:
-                if not line.strip():
-                    continue
-                fields = line.rstrip().split("\t")
-                if len(fields) < 6:
-                    continue
-                chrom, start, end, name, score, strand = fields[:6]
-                start = int(start)
-                end = int(end)
-                if strand == "+":
-                    tss_start = start
-                else:
-                    tss_start = max(end - 1, 0)
-                tss_end = tss_start + 1
-                out_handle.write("\t".join([chrom, str(tss_start), str(tss_end), name]) + "\n")
+        gtf_to_tss_bed(Path(args.gtf), tss_bed)
         features_bed = tss_bed
 
     if not features_bed or not features_bed.exists():

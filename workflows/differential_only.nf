@@ -98,19 +98,20 @@ workflow DIFFERENTIAL_ONLY {
         exit 1, "--omnipeaks_jar is required when --run_span_diff is enabled."
     }
 
-    if (!params.gene_bed && !file(cached_gene_bed).exists() && !params.gtf) {
+    def annotation_enabled = (params.run_diffbind || params.run_chipbinner || params.run_span_diff) && !params.differential_publish_manifest_only
+    if (annotation_enabled && !params.gene_bed && !file(cached_gene_bed).exists() && !params.gtf) {
         exit 1, "Differential annotation requires --gene_bed or --gtf (or a cached gene bed at ${cached_gene_bed})."
     }
 
     ch_gene_bed = Channel.empty()
-    if (params.gene_bed) {
+    if (annotation_enabled && params.gene_bed) {
         ch_gene_bed = Channel.fromPath(params.gene_bed, checkIfExists: true)
-    } else if (file(cached_gene_bed).exists()) {
+    } else if (annotation_enabled && file(cached_gene_bed).exists()) {
         ch_gene_bed = Channel.fromPath(cached_gene_bed, checkIfExists: true)
     }
 
     ch_gtf = Channel.empty()
-    if (params.gtf) {
+    if (annotation_enabled && params.gtf) {
         ch_gtf = Channel.from( file(params.gtf) )
     }
 

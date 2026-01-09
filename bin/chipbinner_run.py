@@ -254,7 +254,8 @@ def normalize_counts(counts_df, sample_ids, samples, use_spikein, pseudocount):
             if spike == 0:
                 raise RuntimeError("Spike-in scale factor cannot be zero")
             spike_size = 1.0 / spike
-            counts.iloc[:, idx] = counts.iloc[:, idx] / spike_size
+            # Apply the scale factor directly (equivalent to dividing by size factor).
+            counts.iloc[:, idx] = counts.iloc[:, idx] * spike
             steps.append("spikein")
 
         ms_raw = row.get("ms_coeff")

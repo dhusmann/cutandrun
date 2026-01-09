@@ -676,11 +676,11 @@ def main():
                 f"chipbinner_use_input requested but input BAMs are missing ({'; '.join(details) or 'no input_bam values'})."
             )
 
-    windows_source = choose_windows_file(
-        args.windows, args.windows_dir, args.bin_size, args.chrom_sizes, args.blacklist
-    )
     windows_path = os.path.join(args.outdir, "chipbinner.windows.bed")
     try:
+        windows_source = choose_windows_file(
+            args.windows, args.windows_dir, args.bin_size, args.chrom_sizes, args.blacklist
+        )
         if windows_source:
             if args.blacklist and os.path.exists(args.blacklist):
                 with tempfile.TemporaryDirectory() as tmpdir:

@@ -244,6 +244,14 @@ def write_matrix(counts_df, sample_ids, out_path):
 
 def normalize_counts(counts_df, sample_ids, samples, use_spikein, pseudocount):
     counts = counts_df[sample_ids].astype(float)
+    if use_spikein:
+        missing = []
+        for row in samples:
+            spike_raw = row.get("spikein_scale_factor")
+            if parse_float(spike_raw) is None:
+                missing.append(row.get("sample_id", ""))
+        if missing:
+            raise RuntimeError(f"Missing spike-in scale factors for samples: {', '.join(sorted(set(missing)))}")
     factors = []
     scaling_applied = []
     for idx, row in enumerate(samples):

@@ -244,6 +244,7 @@ def write_matrix(counts_df, sample_ids, out_path):
 
 def normalize_counts(counts_df, sample_ids, samples, use_spikein, pseudocount):
     counts = counts_df[sample_ids].astype(float)
+    raw_library_size = counts.sum(axis=0)
     factors = []
     for idx, row in enumerate(samples):
         steps = []
@@ -280,7 +281,7 @@ def normalize_counts(counts_df, sample_ids, samples, use_spikein, pseudocount):
             "applied_steps": ",".join(steps),
         })
 
-    library_size = counts.sum(axis=0)
+    library_size = raw_library_size
     library_size[library_size == 0] = 1.0
     normalized = counts.divide(library_size, axis=1) * 1e6
     normalized = normalized + pseudocount

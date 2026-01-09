@@ -4,6 +4,7 @@
 
 include { DIFFERENTIAL_PEAK_CALLING } from "../subworkflows/local/differential_peak_calling"
 include { CUSTOM_GETCHROMSIZES } from "../modules/nf-core/custom/getchromsizes/main"
+include { GUNZIP as GUNZIP_FASTA } from "../modules/nf-core/gunzip/main"
 
 import java.security.MessageDigest
 
@@ -151,7 +152,11 @@ workflow DIFFERENTIAL_ONLY {
             }
             exit 1, "--fasta is required for differential-only mode (${reasons.join('; ')})"
         }
-        ch_fasta = Channel.of([ [id: 'genome'], file(params.fasta) ])
+        if (params.fasta.endsWith(".gz")) {
+            ch_fasta = GUNZIP_FASTA ( [ [id: 'genome'], params.fasta ] ).gunzip
+        } else {
+            ch_fasta = Channel.of([ [id: 'genome'], file(params.fasta) ])
+        }
         CUSTOM_GETCHROMSIZES ( ch_fasta )
         ch_chrom_sizes = CUSTOM_GETCHROMSIZES.out.sizes.map { it[1] }
     } else if (params.run_chipbinner || params.run_span_diff) {

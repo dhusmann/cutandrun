@@ -244,10 +244,11 @@ def write_matrix(counts_df, sample_ids, out_path):
 
 def normalize_counts(counts_df, sample_ids, samples, use_spikein, pseudocount):
     counts = counts_df[sample_ids].astype(float)
-    raw_library_size = counts.sum(axis=0)
     factors = []
+    scaling_applied = []
     for idx, row in enumerate(samples):
         steps = []
+        applied = False
         spike_raw = row.get("spikein_scale_factor")
         spike = parse_float(spike_raw) if use_spikein else None
         spike_size = None
@@ -258,6 +259,7 @@ def normalize_counts(counts_df, sample_ids, samples, use_spikein, pseudocount):
             # Apply the scale factor directly (equivalent to dividing by size factor).
             counts.iloc[:, idx] = counts.iloc[:, idx] * spike
             steps.append("spikein")
+            applied = True
 
         ms_raw = row.get("ms_coeff")
         ms_coeff = parse_float(ms_raw)
@@ -268,8 +270,8 @@ def normalize_counts(counts_df, sample_ids, samples, use_spikein, pseudocount):
             ms_size = 1.0 / ms_coeff
             counts.iloc[:, idx] = counts.iloc[:, idx] / ms_size
             steps.append("ms_coeff")
+            applied = True
 
-        steps.extend(["pseudocount", "library_size_cpm"])
         factors.append({
             "sample_id": row.get("sample_id", ""),
             "group": row.get("group", ""),
@@ -278,13 +280,26 @@ def normalize_counts(counts_df, sample_ids, samples, use_spikein, pseudocount):
             "spikein_size_factor": spike_size if spike_size is not None else "NA",
             "ms_coeff": ms_coeff if ms_coeff is not None else "NA",
             "ms_size_factor": ms_size if ms_size is not None else "NA",
-            "applied_steps": ",".join(steps),
+            "applied_steps": steps,
         })
+        scaling_applied.append(applied)
 
-    library_size = raw_library_size
-    library_size[library_size == 0] = 1.0
-    normalized = counts.divide(library_size, axis=1) * 1e6
+    apply_cpm = not any(scaling_applied)
+    if apply_cpm:
+        library_size = counts.sum(axis=0)
+        library_size[library_size == 0] = 1.0
+        normalized = counts.divide(library_size, axis=1) * 1e6
+    else:
+        normalized = counts.copy()
     normalized = normalized + pseudocount
+
+    for entry in factors:
+        steps = entry.get("applied_steps", [])
+        steps.append("pseudocount")
+        if apply_cpm:
+            steps.append("library_size_cpm")
+        entry["applied_steps"] = ",".join(steps)
+
     return normalized, pd.DataFrame(factors)
 
 

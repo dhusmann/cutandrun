@@ -687,8 +687,19 @@ def main():
         plot_pca(norm_matrix.drop(columns=["bin_id"]).values, sample_ids, samples, os.path.join(plots_dir, "chipbinner.pca.png"))
         plot_correlation(norm_matrix.drop(columns=["bin_id"]).values, sample_ids, os.path.join(plots_dir, "chipbinner.correlation.png"))
 
-        minpts_list = parse_grid(args.grid_minpts, [100, 200, 500, 1000])
-        minsamps_list = parse_grid(args.grid_minsamps, [100, 200, 500, 1000])
+        n_bins = len(windows_df)
+        if n_bins < 2:
+            raise RuntimeError("Not enough bins for HDBSCAN clustering (n_bins < 2)")
+
+        def clamp_grid(values, n_bins, min_value):
+            vals = sorted({v for v in values if v <= n_bins})
+            if not vals:
+                fallback = min(n_bins, max(min_value, min(10, n_bins)))
+                vals = [fallback]
+            return vals
+
+        minpts_list = clamp_grid(parse_grid(args.grid_minpts, [100, 200, 500, 1000]), n_bins, 2)
+        minsamps_list = clamp_grid(parse_grid(args.grid_minsamps, [100, 200, 500, 1000]), n_bins, 1)
         grid_dir = os.path.join(args.outdir, "hdbscan_grid")
         grid_summary_path = os.path.join(args.outdir, "chipbinner.hdbscan_grid_summary.tsv")
         chosen, grid_summary_path = hdbscan_grid(norm_matrix.drop(columns=["bin_id"]), windows_df, minpts_list, minsamps_list, grid_dir, grid_summary_path)

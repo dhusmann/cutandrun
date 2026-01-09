@@ -48,7 +48,8 @@ def resolveCachedWindowsPath(windowsDir, binSize, genomeId, blacklistPath) {
             header.eachWithIndex { col, idx ->
                 metaRow[col] = idx < values.size() ? values[idx] : ""
             }
-            if (metaRow["bin_size"] == binSize.toString() && metaRow["blacklist_hash"] == blacklistHash) {
+            def genome_ok = !genomeId || metaRow["genome_id"] == genomeId
+            if (genome_ok && metaRow["bin_size"] == binSize.toString() && metaRow["blacklist_hash"] == blacklistHash) {
                 def candidate = file("${windowsDir}/${metaRow['windows_path']}")
                 if (candidate.exists()) {
                     return candidate.toString()

@@ -279,10 +279,10 @@ def normalize_counts(counts_df, sample_ids, samples, use_spikein, pseudocount):
             "applied_steps": ",".join(steps),
         })
 
-    counts = counts + pseudocount
     library_size = counts.sum(axis=0)
     library_size[library_size == 0] = 1.0
     normalized = counts.divide(library_size, axis=1) * 1e6
+    normalized = normalized + pseudocount
     return normalized, pd.DataFrame(factors)
 
 

@@ -246,17 +246,27 @@ tryCatch({
     count_args <- utils::modifyList(list(DBA = dba_obj, summits = summit_size, minOverlap = min_overlap), extra_params_for(extra_params, "dba_count"))
     dba_obj <- do.call(dba.count, count_args)
 
-    if (use_spikein && "spikein_scale_factor" %in% colnames(records)) {
-        factors <- suppressWarnings(as.numeric(records$spikein_scale_factor))
-        if (any(!is.na(factors))) {
-            size_factors <- ifelse(factors == 0, 1, 1 / factors)
-            names(size_factors) <- records$sample_id
-            size_factors <- size_factors[samplesheet$SampleID]
-            norm_args <- utils::modifyList(list(DBA = dba_obj, normalize = DBA_NORM_LIB, library = size_factors), extra_params_for(extra_params, "dba_normalize"))
-            dba_obj <- do.call(dba.normalize, norm_args)
-            norm_out <- data.frame(sample_id = samplesheet$SampleID, size_factor = size_factors, stringsAsFactors = FALSE)
-            write.table(norm_out, file = file.path(outdir, "diffbind.normalization_factors.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
+    if (use_spikein) {
+        if (!"spikein_scale_factor" %in% colnames(records)) {
+            status <- if (allow_partial) "SKIP" else "FAIL"
+            fail_or_record(status, "missing_spikein_scale_factor", "Missing spikein_scale_factor column in records; required when --differential_use_spikein is enabled.")
         }
+        factors_raw <- records$spikein_scale_factor
+        factors_raw_chr <- trimws(as.character(factors_raw))
+        factors <- suppressWarnings(as.numeric(factors_raw_chr))
+        missing_idx <- which(is.na(factors) | is.na(factors_raw) | factors_raw_chr == "")
+        if (length(missing_idx) > 0) {
+            missing_samples <- unique(records$sample_id[missing_idx])
+            status <- if (allow_partial) "SKIP" else "FAIL"
+            fail_or_record(status, "missing_spikein_scale_factor", sprintf("Missing spike-in scale factors for samples: %s", paste(missing_samples, collapse = ", ")))
+        }
+        size_factors <- ifelse(factors == 0, 1, 1 / factors)
+        names(size_factors) <- records$sample_id
+        size_factors <- size_factors[samplesheet$SampleID]
+        norm_args <- utils::modifyList(list(DBA = dba_obj, normalize = DBA_NORM_LIB, library = size_factors), extra_params_for(extra_params, "dba_normalize"))
+        dba_obj <- do.call(dba.normalize, norm_args)
+        norm_out <- data.frame(sample_id = samplesheet$SampleID, size_factor = size_factors, stringsAsFactors = FALSE)
+        write.table(norm_out, file = file.path(outdir, "diffbind.normalization_factors.tsv"), sep = "\t", quote = FALSE, row.names = FALSE)
     } else if (!is.null(norm_method) && norm_method != "native") {
         norm_args <- utils::modifyList(list(DBA = dba_obj, method = norm_method), extra_params_for(extra_params, "dba_normalize"))
         dba_obj <- do.call(dba.normalize, norm_args)

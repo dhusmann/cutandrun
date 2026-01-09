@@ -59,7 +59,7 @@ class WorkflowMain {
         if (entry) {
             return entry?.toString()?.toUpperCase() == 'DIFFERENTIAL_ONLY'
         }
-        return params?.differential_from_run ? true : false
+        return false
     }
 
     //

@@ -252,18 +252,16 @@ def parse_native_output(path: str) -> List[Dict[str, str]]:
                 val = safe_float(parts[idx])
                 if val is not None:
                     numeric.append((idx, val))
-            for idx, val in numeric:
-                if log_val == "NA" and not (0.0 <= val <= 1.0):
-                    log_val = parts[idx]
-                    continue
-                if pval_val == "NA" and 0.0 <= val <= 1.0:
-                    pval_val = parts[idx]
-                    continue
-                if fdr_val == "NA" and 0.0 <= val <= 1.0:
-                    fdr_val = parts[idx]
-                    continue
-            if log_val == "NA" and numeric:
-                log_val = parts[numeric[0][0]]
+            if numeric:
+                log_idx, _ = numeric[0]
+                log_val = parts[log_idx]
+                for idx, val in numeric[1:]:
+                    if pval_val == "NA" and 0.0 <= val <= 1.0:
+                        pval_val = parts[idx]
+                        continue
+                    if fdr_val == "NA" and 0.0 <= val <= 1.0:
+                        fdr_val = parts[idx]
+                        continue
 
         rows.append({
             "chr": chr_val,

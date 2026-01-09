@@ -256,7 +256,8 @@ def check_samplesheet(file_in, file_out, use_control, allow_cross_condition_cont
             if allow_cross_condition_controls:
                 record_warning(
                     "WARNING: Control entry '{}' does not match any group entry; proceeding because "
-                    "--allow_cross_condition_controls was set. Control-required callers will be skipped.".format(ctrl)
+                    "--allow_cross_condition_controls was set. This may indicate a typo. "
+                    "Control-required callers (epic2/span) will be skipped; SEACR/MACS2 will run without control.".format(ctrl)
                 )
                 continue
             print_error(
@@ -377,7 +378,8 @@ def check_samplesheet(file_in, file_out, use_control, allow_cross_condition_cont
         if missing_control_warnings:
             record_warning(
                 "WARNING: No control rows exist for one or more control groups; proceeding because "
-                "--allow_cross_condition_controls was set. Control-required callers will be skipped for these samples."
+                "--allow_cross_condition_controls was set. Control-required callers (epic2/span) will be skipped "
+                "for these samples; SEACR/MACS2 will run without control."
             )
             for entry in missing_control_warnings:
                 record_warning(

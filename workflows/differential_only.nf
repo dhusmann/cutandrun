@@ -36,6 +36,27 @@ workflow DIFFERENTIAL_ONLY {
         def meta = new JsonSlurper().parse(run_meta_path)
         callers_list = meta?.callers ?: []
     }
+    def known_conditions = []
+    samples_path.eachLine { line, idx ->
+        if (idx == 1) {
+            def headers = line.split('\t', -1)
+            def cond_idx = headers.findIndexOf { it == 'condition' }
+            if (cond_idx >= 0) {
+                samples_path.eachLine { row, row_idx ->
+                    if (row_idx == 1) return
+                    if (!row.trim()) return
+                    def fields = row.split('\t', -1)
+                    if (fields.size() > cond_idx) {
+                        def value = fields[cond_idx]
+                        if (value && value != 'NA') {
+                            known_conditions << value
+                        }
+                    }
+                }
+            }
+        }
+    }
+    known_conditions = known_conditions.unique()
 
     ch_samples = Channel.fromPath(samples_path).splitCsv(header: true, sep: '\t')
         .map { row ->
@@ -72,9 +93,16 @@ workflow DIFFERENTIAL_ONLY {
         ch_control_bam_bai = Channel.fromPath("${pooled_controls_dir}/*.bam")
             .map { bam ->
                 def base = bam.baseName
-                def parts = base.tokenize('_')
-                def condition = parts.size() > 1 ? parts[-1] : 'NA'
-                def group = parts.size() > 1 ? parts[0..-2].join('_') : base
+                def matched = known_conditions.findAll { base.endsWith("_${it}") }
+                def condition = matched ? matched.max { it.size() } : null
+                def group = base
+                if (condition) {
+                    group = base[0..-(condition.size() + 2)]
+                } else {
+                    def parts = base.tokenize('_')
+                    condition = parts.size() > 1 ? parts[-1] : 'NA'
+                    group = parts.size() > 1 ? parts[0..-2].join('_') : base
+                }
                 def bai = file("${bam}.bai")
                 if (!bai.exists()) {
                     bai = file("${bam.parent}/${bam.baseName}.bai")

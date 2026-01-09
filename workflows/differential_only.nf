@@ -116,6 +116,11 @@ workflow DIFFERENTIAL_ONLY {
         ch_gtf = Channel.from( file(params.gtf) )
     }
 
+    def default_windows_dir = "${manifest_dir}/chipbinner_windows_cache"
+    if (!params.chipbinner_windows_dir && file(default_windows_dir).exists()) {
+        params.chipbinner_windows_dir = default_windows_dir
+    }
+
     def cached_windows = resolveCachedWindowsPath(
         params.chipbinner_windows_dir,
         params.chipbinner_bin_size,

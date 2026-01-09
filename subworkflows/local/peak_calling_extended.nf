@@ -78,32 +78,49 @@ workflow PEAK_CALLING_EXTENDED {
     }
 
     // Pair targets with controls by control_group + control_condition and replicate logic
+    // Never drop targets when controls are missing (return null control instead)
     def pair_targets_controls = { ch_target, ch_control ->
-        def ch_control_grouped = ch_control
+        def control_map_ch = ch_control
             .map { meta, file -> ["${meta.group}__${meta.condition}", [meta, file]] }
             .groupTuple(by: [0])
+            .toList()
+            .map { list ->
+                def map = [:]
+                (list ?: []).each { entry ->
+                    map[entry[0]] = entry[1]
+                }
+                map
+            }
 
-        def ch_target_grouped = ch_target
-            .map { meta, file -> ["${meta.control_group}__${meta.control_condition}", [meta, file]] }
+        def target_count_ch = ch_target
+            .map { meta, file -> ["${meta.control_group}__${meta.control_condition}", meta.replicate] }
             .groupTuple(by: [0])
+            .map { key, reps -> [key, reps.size()] }
+            .toList()
+            .map { list ->
+                def map = [:]
+                (list ?: []).each { entry ->
+                    map[entry[0]] = entry[1]
+                }
+                map
+            }
 
-        ch_control_grouped
-            .join(ch_target_grouped)
-            .flatMap { key, control_list, target_list ->
+        ch_target
+            .combine(control_map_ch)
+            .combine(target_count_ch)
+            .flatMap { meta, file, control_map, target_count_map ->
+                def key = "${meta.control_group}__${meta.control_condition}"
+                def control_list = control_map.get(key)
+                if (!control_list) {
+                    return [[meta + [control_missing: true], file, null]]
+                }
                 def control_by_rep = control_list.collectEntries { [(it[0].replicate): it[1]] }
                 def control_default = control_list.sort { it[0].replicate }[0][1]
                 def control_reps_count = control_list.size()
-                def target_reps_count = target_list.size()
-
-                def pairs = []
-                target_list.each { target_item ->
-                    def tmeta = target_item[0]
-                    def tfile = target_item[1]
-                    def control_file = (control_reps_count == target_reps_count && control_by_rep.containsKey(tmeta.replicate)) ?
-                        control_by_rep[tmeta.replicate] : control_default
-                    pairs.add([tmeta, tfile, control_file])
-                }
-                pairs
+                def target_reps_count = target_count_map.get(key) ?: 1
+                def control_file = (control_reps_count == target_reps_count && control_by_rep.containsKey(meta.replicate)) ?
+                    control_by_rep[meta.replicate] : control_default
+                return [[meta + [control_missing: false], file, control_file]]
             }
     }
 
@@ -120,8 +137,15 @@ workflow PEAK_CALLING_EXTENDED {
                 ch_bedgraph_target_cc.map { meta, bed -> [meta + [caller: 'seacr'], bed] },
                 bedgraph_control
             )
+            def ch_seacr_inputs = ch_seacr_pairs.map { meta, bed, control ->
+                if (!control) {
+                    log.warn "No control found for group '${meta.control_group}' (condition '${meta.control_condition}') - running SEACR without control for ${meta.sample_id ?: meta.id}"
+                    return [meta, bed, []]
+                }
+                [meta, bed, control]
+            }
             SEACR_CALLPEAK (
-                ch_seacr_pairs,
+                ch_seacr_inputs,
                 params.seacr_peak_threshold
             )
             ch_peaks_all = ch_peaks_all.mix(SEACR_CALLPEAK.out.bed)
@@ -147,8 +171,15 @@ workflow PEAK_CALLING_EXTENDED {
                 ch_bam_target_cc.map { meta, bam -> [meta + [caller: 'macs2'], bam] },
                 bam_control
             )
+            def ch_macs_inputs = ch_macs_pairs.map { meta, bam, control ->
+                if (!control) {
+                    log.warn "No control found for group '${meta.control_group}' (condition '${meta.control_condition}') - running MACS2 without control for ${meta.sample_id ?: meta.id}"
+                    return [meta, bam, []]
+                }
+                [meta, bam, control]
+            }
             MACS2_CALLPEAK_LEGACY (
-                ch_macs_pairs,
+                ch_macs_inputs,
                 params.macs_gsize
             )
             ch_peaks_all = ch_peaks_all.mix(MACS2_CALLPEAK_LEGACY.out.peak)

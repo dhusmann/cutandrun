@@ -39,13 +39,14 @@ workflow DIFFERENTIAL_ONLY {
 
     ch_samples = Channel.fromPath(samples_path).splitCsv(header: true, sep: '\t')
         .map { row ->
+            def control_group = (row.control_group && row.control_group != 'NA') ? row.control_group : row.group
             def meta = [
                 id: row.sample_id,
                 sample_id: row.sample_id,
                 group: row.group,
                 condition: row.condition,
                 replicate: row.replicate.toInteger(),
-                control_group: row.control_group ?: row.group,
+                control_group: control_group,
                 control_condition: row.control_condition ?: 'NA',
                 is_control: false,
                 normalisation_mode: row.normalisation_mode ?: params.normalisation_mode

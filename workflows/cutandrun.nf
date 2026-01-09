@@ -733,7 +733,8 @@ workflow CUTANDRUN {
             * CHANNEL: Structure output for join on id
             */
             ch_peaks_summits
-            .map { meta, bed -> [meta.sample_id ?: meta.id, meta, bed] }
+            .map { meta, bed -> [meta.sample_id ?: meta.id, [meta, bed]] }
+            .groupTuple(by: [0])
             .set { ch_peaks_summits_id }
             //ch_peaks_bed_id | view
 
@@ -743,12 +744,14 @@ workflow CUTANDRUN {
             ch_bigwig_no_igg_heatmap
             .map { meta, bigwig -> [meta.id, bigwig] }
             .join ( ch_peaks_summits_id )
-            .map { row ->
-                def peak_meta = row[2]
-                def bed = row[3]
-                def sample_id = peak_meta.sample_id ?: peak_meta.id
-                def heatmap_meta = peak_meta + [id: "${sample_id}_${peak_meta.caller}"]
-                [ heatmap_meta, row[1], bed ]
+            .flatMap { row ->
+                def peaks_list = row[2]
+                def bigwig = row[1]
+                peaks_list.collect { peak_meta, bed ->
+                    def sample_id = peak_meta.sample_id ?: peak_meta.id
+                    def heatmap_meta = peak_meta + [id: "${sample_id}_${peak_meta.caller}"]
+                    [ heatmap_meta, bigwig, bed ]
+                }
             }
             .filter ( it -> it[2].size() > 1)
             .set { ch_dt_bigwig_summits }

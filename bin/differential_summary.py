@@ -53,6 +53,15 @@ def main():
             }
         else:
             for method in ("chipbinner", "span"):
+                method_status = status
+                method_reason = reason
+                if status == "RUN":
+                    if method == "chipbinner" and (row.get("eligible_chipbinner") or "").lower() != "true":
+                        method_status = "SKIP"
+                        method_reason = "chipbinner_disabled"
+                    if method == "span" and (row.get("eligible_span") or "").lower() != "true":
+                        method_status = "SKIP"
+                        method_reason = "span_disabled"
                 key = (method, group, "NA")
                 base_rows[key] = {
                     "method": method,
@@ -68,8 +77,8 @@ def main():
                     "chosen_minPts": "NA",
                     "chosen_minSamps": "NA",
                     "mode": "NA",
-                    "status": status,
-                    "reason": reason,
+                    "status": method_status,
+                    "reason": method_reason,
                 }
 
     for summary_path in args.summaries:

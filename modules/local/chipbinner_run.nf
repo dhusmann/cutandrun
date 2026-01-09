@@ -2,7 +2,7 @@ process CHIPBINNER_RUN {
     label 'process_chipbinner'
 
     conda "conda-forge::python=3.8.3 conda-forge::numpy=1.24.4 conda-forge::pandas=2.0.3 conda-forge::scikit-learn=1.3.2 conda-forge::matplotlib=3.7.5 conda-forge::seaborn=0.12.2 conda-forge::hdbscan=0.8.33 conda-forge::scipy=1.10.1 bioconda::bedtools=2.31.1 bioconda::samtools=1.17 conda-forge::r-base=4.2.3 bioconda::bioconductor-rots=1.20.0"
-    container "quay.io/biocontainers/python:3.8.3"
+    container "quay.io/biocontainers/biocontainers:1.2.0--py38_0"
 
     input:
     tuple val(group), path(records), path(chrom_sizes), path(windows)

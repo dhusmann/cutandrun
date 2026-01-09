@@ -2,7 +2,7 @@ process SPAN_DIFF_RUN {
     label { params.span_diff_mode == 'fallback' ? 'SPAN_FALLBACK' : 'SPAN_NATIVE' }
 
     conda "conda-forge::python=3.8.3 conda-forge::openjdk=21.0.2 bioconda::samtools=1.16.1 bioconda::bedtools=2.31.0 conda-forge::r-base=4.2.3 bioconda::bioconductor-deseq2 bioconda::bioconductor-edger"
-    container "quay.io/biocontainers/python:3.8.3"
+    container "quay.io/biocontainers/biocontainers:1.2.0--py38_0"
 
     input:
     tuple val(group), path(samples_manifest), path(peaks_manifest), path(chrom_sizes)

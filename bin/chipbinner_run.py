@@ -708,7 +708,7 @@ def main():
         control_idx = [i for i, row in enumerate(samples) if row.get("condition") == control_label]
         treated_mean = norm_vals[:, treated_idx].mean(axis=1)
         control_mean = norm_vals[:, control_idx].mean(axis=1)
-        log2fc = np.log2(treated_mean + args.pseudocount) - np.log2(control_mean + args.pseudocount)
+        log2fc = np.log2(treated_mean) - np.log2(control_mean)
 
         diff_df = pd.DataFrame({
             "chrom": windows_df["chrom"],

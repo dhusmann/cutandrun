@@ -128,15 +128,21 @@ workflow DIFFERENTIAL_ONLY {
     }
 
     ch_chrom_sizes = Channel.empty()
-    def need_real_chrom_sizes = (params.run_span_diff && params.span_diff_mode == 'native') || (params.run_chipbinner && !use_cached_windows)
+    def span_requires_sizes = params.run_span_diff && ['native', 'auto'].contains(params.span_diff_mode)
+    def chipbinner_requires_sizes = params.run_chipbinner && !use_cached_windows
+    def need_real_chrom_sizes = span_requires_sizes || chipbinner_requires_sizes
     if (need_real_chrom_sizes) {
         if (!params.fasta) {
             def reasons = []
-            if (params.run_chipbinner && !use_cached_windows) {
+            if (chipbinner_requires_sizes) {
                 reasons << "cached ChIPBinner windows not found"
             }
-            if (params.run_span_diff && params.span_diff_mode == 'native') {
-                reasons << "SPAN native requires chrom sizes"
+            if (span_requires_sizes) {
+                if (params.span_diff_mode == 'auto') {
+                    reasons << "SPAN auto can select native compare and requires chrom sizes (set --span_diff_mode fallback to run without FASTA)"
+                } else {
+                    reasons << "SPAN native requires chrom sizes"
+                }
             }
             exit 1, "--fasta is required for differential-only mode (${reasons.join('; ')})"
         }

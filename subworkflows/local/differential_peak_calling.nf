@@ -407,7 +407,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             def chipbinner_windows_dir = params.chipbinner_windows_dir ? file(params.chipbinner_windows_dir).toString() : ''
             def chipbinner_blacklist = params.blacklist ? file(params.blacklist).toString() : ''
             CHIPBINNER_WINDOWS_CACHE (
-                ch_chrom_sizes.collect().map { it[0] },
+                ch_chrom_sizes.collect().map { it instanceof List ? it[0] : it },
                 params.chipbinner_bin_size,
                 chipbinner_windows_dir,
                 chipbinner_blacklist
@@ -438,7 +438,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 .map { group, caller, records_file -> [group, records_file] }
 
             ch_chip_inputs = ch_chip_records_file
-                .combine(ch_chrom_sizes.collect().map { it[0] })
+                .combine(ch_chrom_sizes.collect().map { it instanceof List ? it[0] : it })
                 .combine(ch_chipbinner_windows)
                 .map { record, chrom_sizes, windows -> [ record[0], record[1], chrom_sizes, windows ] }
 
@@ -492,7 +492,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             if (params.span_diff_mode == 'fallback') {
                 span_chrom_sizes = ch_chrom_sizes.ifEmpty(file("$projectDir/assets/chrom_sizes_stub.sizes"))
             }
-            ch_span_chrom_sizes_single = span_chrom_sizes.collect().map { it[0] }
+            ch_span_chrom_sizes_single = span_chrom_sizes.collect().map { it instanceof List ? it[0] : it }
 
             ch_span_inputs = ch_span_design
                 .combine(ch_samples_manifest_single)

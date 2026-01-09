@@ -5,6 +5,7 @@
 include { DIFFERENTIAL_PEAK_CALLING } from "../subworkflows/local/differential_peak_calling"
 include { CUSTOM_GETCHROMSIZES } from "../modules/nf-core/custom/getchromsizes/main"
 include { GUNZIP as GUNZIP_FASTA } from "../modules/nf-core/gunzip/main"
+include { GUNZIP as GUNZIP_GENE_BED } from "../modules/nf-core/gunzip/main"
 
 import java.security.MessageDigest
 
@@ -107,7 +108,11 @@ workflow DIFFERENTIAL_ONLY {
 
     ch_gene_bed = Channel.empty()
     if (annotation_enabled && params.gene_bed) {
-        ch_gene_bed = Channel.fromPath(params.gene_bed, checkIfExists: true)
+        if (params.gene_bed.endsWith(".gz")) {
+            ch_gene_bed = GUNZIP_GENE_BED ( [ [id: 'gene_bed'], params.gene_bed ] ).gunzip.map { it[1] }
+        } else {
+            ch_gene_bed = Channel.from( file(params.gene_bed) )
+        }
     } else if (annotation_enabled && file(cached_gene_bed).exists()) {
         ch_gene_bed = Channel.fromPath(cached_gene_bed, checkIfExists: true)
     }

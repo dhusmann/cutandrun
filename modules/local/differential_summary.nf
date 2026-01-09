@@ -12,7 +12,12 @@ process DIFFERENTIAL_SUMMARY_MERGE {
     container "quay.io/biocontainers/python:3.8.3"
 
     input:
-    path summary_files, stageAs: { file -> "summaries/${file.parent.name}-${file.name}" }
+    path summary_files, stageAs: { file ->
+        def caller = file.parent?.parent?.name ?: file.parent?.name ?: 'summary'
+        def group = file.parent?.name ?: 'group'
+        def prefix = caller == group ? group : "${caller}-${group}"
+        "summaries/${prefix}-${file.name}"
+    }
     val skipped_json
     path summary_header
     path skipped_header

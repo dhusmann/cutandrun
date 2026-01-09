@@ -76,7 +76,7 @@ workflow DIFFERENTIAL_ONLY {
                 def group = parts.size() > 1 ? parts[0..-2].join('_') : base
                 def bai = file("${bam}.bai")
                 if (!bai.exists()) {
-                    bai = file("${bam.baseName}.bai")
+                    bai = file("${bam.parent}/${bam.baseName}.bai")
                 }
                 if (!bai.exists()) {
                     log.warn "Missing BAI for pooled control ${bam}"

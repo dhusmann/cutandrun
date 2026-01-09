@@ -91,7 +91,7 @@ process SPAN_COMPARE {
     cp "\$diff_file" span.differential.tsv
 
     cat <<'AWK' > span_compare_bed.awk
-    function isnum(x) { return (x ~ /^-?[0-9]+(\\.[0-9]+)?([eE][-+]?[0-9]+)?$/) }
+    function isnum(x) { return (x ~ /^-?[0-9]+(\\.[0-9]+)?([eE][-+]?[0-9]+)?\$/) }
     BEGIN { OFS="\\t"; header_done=0; chr_idx=1; start_idx=2; end_idx=3 }
     /^#/ || /^track/ || /^browser/ { next }
     !header_done {
@@ -115,7 +115,7 @@ process SPAN_COMPARE {
     : > span.significant_up.bed
     : > span.significant_down.bed
     cat <<'AWK' > span_compare_filter.awk
-    function isnum(x) { return (x ~ /^-?[0-9]+(\\.[0-9]+)?([eE][-+]?[0-9]+)?$/) }
+    function isnum(x) { return (x ~ /^-?[0-9]+(\\.[0-9]+)?([eE][-+]?[0-9]+)?\$/) }
     function calc_fdr(val) {
         if (!isnum(val)) return 1
         if (val <= 1) return val + 0
@@ -173,7 +173,7 @@ process SPAN_COMPARE {
 
     cat span.significant_up.bed span.significant_down.bed | awk 'NF' | sort -k1,1 -k2,2n | uniq > span.significant.bed
 
-    total=\$(awk 'function isnum(x) { return (x ~ /^-?[0-9]+(\\.[0-9]+)?([eE][-+]?[0-9]+)?$/) } /^#/ || /^track/ || /^browser/ { next } !header_seen { if (!isnum(\$2)) { header_seen=1; next } header_seen=1 } { n++ } END { print n+0 }' "\$diff_file")
+    total=\$(awk 'function isnum(x) { return (x ~ /^-?[0-9]+(\\.[0-9]+)?([eE][-+]?[0-9]+)?\$/) } /^#/ || /^track/ || /^browser/ { next } !header_seen { if (!isnum(\$2)) { header_seen=1; next } header_seen=1 } { n++ } END { print n+0 }' "\$diff_file")
     n_up=\$(wc -l < span.significant_up.bed | awk '{print \$1}')
     n_down=\$(wc -l < span.significant_down.bed | awk '{print \$1}')
     n_fdr_pass=\$((n_up + n_down))

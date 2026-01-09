@@ -2,9 +2,6 @@
  * Differential peak calling / enrichment
  */
 
-import groovy.json.JsonOutput
-import groovy.json.JsonSlurper
-
 include { WRITE_DIFFERENTIAL_MANIFESTS } from '../../modules/local/write_differential_manifests'
 include { MAKE_DIFFBIND_SAMPLESHEET } from '../../modules/local/diffbind_samplesheet'
 include { MAKE_DIFFBIND_SAMPLESHEET as MAKE_SPAN_SAMPLESHEET } from '../../modules/local/diffbind_samplesheet'
@@ -136,7 +133,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 ]
             }
             .toList()
-            .map { list -> JsonOutput.toJson(list) }
+            .map { list -> groovy.json.JsonOutput.toJson(list) }
 
         ch_peaks_manifest = ch_peaks
             .filter { meta, peaks -> meta.is_control == false }
@@ -164,7 +161,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 ]
             }
             .toList()
-            .map { list -> JsonOutput.toJson(list) }
+            .map { list -> groovy.json.JsonOutput.toJson(list) }
 
         def run_meta = [
             pipeline: workflow.manifest.name,
@@ -176,7 +173,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             chrom_sizes: "${params.outdir}/03_peak_calling/06_differential/00_manifests/chrom_sizes.sizes"
         ]
 
-        ch_run_meta = Channel.value(JsonOutput.toJson(run_meta))
+        ch_run_meta = Channel.value(groovy.json.JsonOutput.toJson(run_meta))
         ch_outdir = Channel.value(params.outdir)
 
         WRITE_DIFFERENTIAL_MANIFESTS(
@@ -279,7 +276,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         )
 
         ch_diffbind_valid
-            .map { rec -> [JsonOutput.toJson(rec.samples), rec.group, rec.caller] }
+            .map { rec -> [groovy.json.JsonOutput.toJson(rec.samples), rec.group, rec.caller] }
             .set { ch_diffbind_samples }
 
         MAKE_DIFFBIND_SAMPLESHEET(
@@ -401,9 +398,9 @@ workflow DIFFERENTIAL_PEAK_CALLING {
 
             def control_bams = use_input_group ? required_conditions.collect { control_by_group[it][0] } : bams
             def control_bais = use_input_group ? required_conditions.collect { control_by_group[it][1] } : bais
-            def control_conditions_json = use_input_group ? JsonOutput.toJson(required_conditions) : JsonOutput.toJson([])
+            def control_conditions_json = use_input_group ? groovy.json.JsonOutput.toJson(required_conditions) : groovy.json.JsonOutput.toJson([])
 
-            [rec.group, JsonOutput.toJson(samples), bams, bais, control_bams, control_bais, control_conditions_json, use_input_group]
+            [rec.group, groovy.json.JsonOutput.toJson(samples), bams, bais, control_bams, control_bais, control_conditions_json, use_input_group]
         }
 
         ch_chipbinner_inputs = CHIPBINNER_BINS.out.bins.join(ch_chipbinner_samples)
@@ -544,7 +541,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             ch_versions = ch_versions.mix(SPAN_CAPABILITY_PROBE.out.versions)
 
             ch_span_caps = SPAN_CAPABILITY_PROBE.out.capabilities
-                .map { file -> new JsonSlurper().parse(file) }
+                .map { file -> new groovy.json.JsonSlurper().parse(file) }
             ch_span_has_compare = ch_span_caps.map { it.has_compare ?: false }
             ch_span_multibam = ch_span_caps.map { it.compare_multi_bam ?: false }
             ch_span_multibam_mode = ch_span_caps.map { it.compare_multi_bam_mode ?: 'single' }
@@ -741,7 +738,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 )
 
                 MAKE_SPAN_SAMPLESHEET(
-                    ch_span_valid.map { rec -> JsonOutput.toJson(rec.samples) },
+                    ch_span_valid.map { rec -> groovy.json.JsonOutput.toJson(rec.samples) },
                     ch_span_valid.map { rec -> rec.group },
                     Channel.value('span_fallback')
                 )
@@ -787,8 +784,8 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             .map { rec -> [rec.group, rec] }
             .groupTuple()
             .map { group, recs ->
-                def native = recs.find { it.span_mode == 'native' }
-                native ?: recs[0]
+                def native_record = recs.find { it.span_mode == 'native' }
+                native_record ?: recs[0]
             }
 
         method_beds = Channel.empty()
@@ -832,7 +829,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
     if (params.differential_run_multiqc) {
         DIFFERENTIAL_SUMMARY_MERGE(
             ch_summary_files.collect().ifEmpty([]),
-            ch_skipped_records.toList().map { list -> JsonOutput.toJson(list) },
+            ch_skipped_records.toList().map { list -> groovy.json.JsonOutput.toJson(list) },
             Channel.value(file("${projectDir}/assets/multiqc/differential_summary_header.txt")),
             Channel.value(file("${projectDir}/assets/multiqc/differential_skipped_header.txt"))
         )

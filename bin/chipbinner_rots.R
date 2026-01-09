@@ -30,6 +30,8 @@ samples_df <- read.csv(opt$samplesheet, stringsAsFactors = FALSE)
 
 sample_ids <- samples_df$sample_id
 conditions <- samples_df$condition
+treated_idx <- conditions == opt$treated
+control_idx <- conditions == opt$control
 
 if (!all(sample_ids %in% colnames(matrix_df))) {
     stop("Matrix columns do not include all sample IDs")
@@ -39,8 +41,8 @@ counts <- as.matrix(matrix_df[, sample_ids, drop = FALSE])
 rownames(counts) <- paste(matrix_df$chr, matrix_df$start, matrix_df$end, sep = ":")
 
 # Differential testing
-log2fc <- log2(rowMeans(counts[, conditions == opt$treated, drop = FALSE]) /
-               rowMeans(counts[, conditions == opt$control, drop = FALSE]))
+log2fc <- log2(rowMeans(counts[, treated_idx, drop = FALSE]) /
+               rowMeans(counts[, control_idx, drop = FALSE]))
 
 use_rots <- TRUE
 tryCatch({
@@ -54,9 +56,14 @@ if (use_rots) {
     rots_res <- ROTS::ROTS(counts, groups = groups, B = opt$bootstrap, K = opt$k_value)
     pvals <- rots_res$pvalue
 } else {
-    pvals <- apply(counts, 1, function(x) {
-        t.test(x[conditions == opt$treated], x[conditions == opt$control])$p.value
-    })
+    if (sum(treated_idx) < 2 || sum(control_idx) < 2) {
+        warning("ROTS unavailable and <2 samples per condition; assigning p-values of 1")
+        pvals <- rep(1, nrow(counts))
+    } else {
+        pvals <- apply(counts, 1, function(x) {
+            t.test(x[treated_idx], x[control_idx])$p.value
+        })
+    }
 }
 
 fdr <- p.adjust(pvals, method = "BH")

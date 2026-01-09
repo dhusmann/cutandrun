@@ -324,7 +324,18 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         ch_samples_rows_contrast = ch_samples_rows.filter { row -> contrast_labels.contains(row.condition) }
 
         def diff_use_spikein = params.differential_use_spikein ? params.differential_use_spikein.toString().toLowerCase() : 'auto'
-        def use_spikein = (diff_use_spikein == 'true') || (diff_use_spikein == 'auto' && params.normalisation_mode == 'Spikein')
+        def use_spikein_default = (diff_use_spikein == 'true') || (diff_use_spikein == 'auto' && params.normalisation_mode == 'Spikein')
+        def ch_use_spikein = Channel.value(use_spikein_default)
+        if (use_manifests && diff_use_spikein == 'auto') {
+            ch_use_spikein = ch_samples_rows
+                .map { row -> row.normalisation_mode ?: '' }
+                .collect()
+                .map { modes ->
+                    def uniq = modes.findAll { it }.collect { it.toString() }.unique()
+                    uniq.contains('Spikein')
+                }
+        }
+        ch_use_spikein = ch_use_spikein.broadcast()
 
         if (params.run_diffbind && !params.differential_publish_manifest_only) {
             ch_diffbind_design = ch_design_rows
@@ -371,7 +382,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             DIFFBIND_RUN (
                 RECORDS_TO_TSV_DIFFBIND.out.tsv,
                 params.differential_contrast,
-                use_spikein,
+                ch_use_spikein,
                 params.diffbind_fdr,
                 params.diffbind_lfc,
                 params.diffbind_min_overlap,
@@ -450,7 +461,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 '',
                 '',
                 params.chipbinner_use_input,
-                use_spikein,
+                ch_use_spikein,
                 params.chipbinner_pseudocount,
                 params.chipbinner_hdbscan_grid_minpts,
                 params.chipbinner_hdbscan_grid_minsamps,
@@ -509,7 +520,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 params.span_diff_gap,
                 params.span_diff_bin,
                 params.span_fallback_backend,
-                use_spikein,
+                ch_use_spikein,
                 params.differential_allow_partial,
                 span_caller_priority,
                 params.omnipeaks_jar ? file(params.omnipeaks_jar) : null,

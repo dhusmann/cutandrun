@@ -54,13 +54,14 @@ workflow DIFFERENTIAL_PEAK_CALLING {
     def diff_enabled = params.run_diffbind || params.run_chipbinner || params.run_span_diff || params.differential_publish_manifest_only
     if (diff_enabled) {
         def use_manifests = (mode == 'posthoc')
-        def diff_outdir = "${params.outdir}/03_peak_calling/08_differential"
+        def outdir_root = file(params.outdir).toString()
+        def diff_outdir = "${outdir_root}/03_peak_calling/08_differential"
 
         def bam_subdir = params.run_remove_linear_dups ? 'linear_dedup' : (params.run_remove_dups ? 'dedup' : (params.run_mark_dups ? 'markdup' : ''))
-        def bam_dir = bam_subdir ? "${params.outdir}/02_alignment/${params.aligner}/target/${bam_subdir}" : "${params.outdir}/02_alignment/${params.aligner}/target"
+        def bam_dir = bam_subdir ? "${outdir_root}/02_alignment/${params.aligner}/target/${bam_subdir}" : "${outdir_root}/02_alignment/${params.aligner}/target"
 
-        def peaks_dir = { caller -> "${params.outdir}/03_peak_calling/04_called_peaks/${caller}" }
-        def bigwig_dir = "${params.outdir}/03_peak_calling/03_bed_to_bigwig"
+        def peaks_dir = { caller -> "${outdir_root}/03_peak_calling/04_called_peaks/${caller}" }
+        def bigwig_dir = "${outdir_root}/03_peak_calling/03_bed_to_bigwig"
 
         def peaks_format = { file ->
             def name = file.getName().toLowerCase()

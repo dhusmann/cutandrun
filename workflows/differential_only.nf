@@ -118,8 +118,10 @@ workflow DIFFERENTIAL_ONLY {
     }
 
     def default_windows_dir = "${manifest_dir}/chipbinner_windows_cache"
+    def default_windows_set = false
     if (!params.chipbinner_windows_dir && file(default_windows_dir).exists()) {
         params.chipbinner_windows_dir = default_windows_dir
+        default_windows_set = true
     }
 
     def cached_windows = resolveCachedWindowsPath(
@@ -131,6 +133,8 @@ workflow DIFFERENTIAL_ONLY {
     def use_cached_windows = cached_windows != null
     if (use_cached_windows) {
         params.chipbinner_windows_dir = cached_windows
+    } else if (default_windows_set) {
+        params.chipbinner_windows_dir = ''
     }
 
     ch_chrom_sizes = Channel.empty()

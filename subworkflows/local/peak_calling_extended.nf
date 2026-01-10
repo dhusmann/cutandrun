@@ -137,7 +137,7 @@ workflow PEAK_CALLING_EXTENDED {
                 ch_bedgraph_target_cc.map { meta, bed -> [meta + [caller: 'seacr'], bed] },
                 bedgraph_control
             )
-            def ch_seacr_inputs = ch_seacr_pairs.map { meta, bed, control ->
+            ch_seacr_inputs = ch_seacr_pairs.map { meta, bed, control ->
                 if (!control) {
                     log.warn "No control found for group '${meta.control_group}' (condition '${meta.control_condition}') - running SEACR without control for ${meta.sample_id ?: meta.id}"
                     return [meta, bed, []]
@@ -171,7 +171,7 @@ workflow PEAK_CALLING_EXTENDED {
                 ch_bam_target_cc.map { meta, bam -> [meta + [caller: 'macs2'], bam] },
                 bam_control
             )
-            def ch_macs_inputs = ch_macs_pairs.map { meta, bam, control ->
+            ch_macs_inputs = ch_macs_pairs.map { meta, bam, control ->
                 if (!control) {
                     log.warn "No control found for group '${meta.control_group}' (condition '${meta.control_condition}') - running MACS2 without control for ${meta.sample_id ?: meta.id}"
                     return [meta, bam, []]

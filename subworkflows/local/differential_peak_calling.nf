@@ -396,8 +396,8 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 }
             }
 
-            def control_bams = use_input_group ? required_conditions.collect { control_by_group[it][0] } : bams
-            def control_bais = use_input_group ? required_conditions.collect { control_by_group[it][1] } : bais
+            def control_bams = use_input_group ? required_conditions.collect { control_by_group[it][0] } : []
+            def control_bais = use_input_group ? required_conditions.collect { control_by_group[it][1] } : []
             def control_conditions_json = use_input_group ? groovy.json.JsonOutput.toJson(required_conditions) : groovy.json.JsonOutput.toJson([])
 
             [rec.group, groovy.json.JsonOutput.toJson(samples), bams, bais, control_bams, control_bais, control_conditions_json, use_input_group]

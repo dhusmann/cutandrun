@@ -9,9 +9,7 @@ process CHIPBINNER_HDBSCAN_GRID {
     ]
 
     conda "conda-forge::python=3.11 conda-forge::numpy conda-forge::pandas conda-forge::scikit-learn conda-forge::hdbscan"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/hdbscan:0.8.33--pyhdfd78af_0' :
-        'biocontainers/hdbscan:0.8.33--pyhdfd78af_0' }"
+    container 'biocontainers/hdbscan:0.8.33--pyhdfd78af_0'
 
     input:
     path matrix

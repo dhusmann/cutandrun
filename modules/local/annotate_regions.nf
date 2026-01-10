@@ -2,11 +2,12 @@ process ANNOTATE_REGIONS {
     tag "${results_tsv.simpleName}"
     label 'process_medium'
 
-    publishDir = { (meta?.publish_dir ?: task.ext.publish_dir) ? [
-        path: meta?.publish_dir ?: task.ext.publish_dir,
+    publishDir = [
+        path: { meta?.publish_dir ?: task.ext.publish_dir },
         mode: params.publish_dir_mode,
-        saveAs: { filename -> filename.equals('versions.yml') ? null : filename }
-    ] : null }
+        saveAs: { filename -> filename.equals('versions.yml') ? null : filename },
+        enabled: { meta?.publish_dir ?: task.ext.publish_dir ? true : false }
+    ]
 
     conda "bioconda::bedtools=2.31.1 bioconda::bedops=2.4.41 conda-forge::python=3.11 conda-forge::perl=5.26.2"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?

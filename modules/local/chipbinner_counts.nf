@@ -9,9 +9,7 @@ process CHIPBINNER_COUNTS {
     ]
 
     conda "bioconda::bedtools=2.31.1 conda-forge::python=3.11 conda-forge::pyyaml"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/bedtools:2.31.1--hf5e1c6e_0' :
-        'biocontainers/bedtools:2.31.1--hf5e1c6e_0' }"
+    container 'biocontainers/bedtools:2.31.1--hf5e1c6e_0'
 
     input:
     path bins
@@ -38,12 +36,12 @@ process CHIPBINNER_COUNTS {
 
     script:
     """\
-    printf "%s\n" ${bams} > bam_paths.txt
-    printf "%s\n" ${bais} > bai_paths.txt
-    printf "%s\n" ${control_bams} > control_bam_paths.txt
-    printf "%s\n" ${control_bais} > control_bai_paths.txt
+    printf "%s\\n" ${bams} > bam_paths.txt
+    printf "%s\\n" ${bais} > bai_paths.txt
+    printf "%s\\n" ${control_bams} > control_bam_paths.txt
+    printf "%s\\n" ${control_bais} > control_bai_paths.txt
 
-    python - <<'PY'
+    python3 - <<'PY'
     import json
     import subprocess
     import sys
@@ -252,7 +250,7 @@ process CHIPBINNER_COUNTS {
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         bedtools: \$(bedtools --version | sed -e "s/bedtools v//g")
-        python: \$(python --version | awk '{print \$2}')
+        python: \$(python3 --version | awk '{print \$2}')
     END_VERSIONS
     """.stripIndent()
 }

@@ -15,7 +15,7 @@ process CHIPBINNER_ROTS {
         }
     ]
 
-    conda "bioconda::r-rots conda-forge::r-base=4.2.3 conda-forge::r-optparse conda-forge::r-ggplot2 conda-forge::r-jsonlite"
+    conda "bioconda::bioconductor-rots conda-forge::r-base=4.2.3 conda-forge::r-optparse conda-forge::r-ggplot2 conda-forge::r-jsonlite conda-forge::python=3.11"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://depot.galaxyproject.org/singularity/r-rots:1.19.0--r42hdfd78af_0' :
         'biocontainers/r-rots:1.19.0--r42hdfd78af_0' }"
@@ -58,7 +58,7 @@ process CHIPBINNER_ROTS {
     script:
     """\
     mkdir -p plots
-    python - <<'PY'
+    python3 - <<'PY'
     import json
     import csv
     samples = json.loads(r'''${samples_json}''')

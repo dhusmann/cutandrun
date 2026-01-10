@@ -95,10 +95,10 @@ process SPAN_COMPARE {
     BEGIN { OFS="\\t"; header_done=0; chr_idx=1; start_idx=2; end_idx=3 }
     /^#/ || /^track/ || /^browser/ { next }
     !header_done {
-        if (!isnum($2)) {
+        if (!isnum(\$2)) {
             for (i=1; i<=NF; i++) {
-                col=tolower($i)
-                if (col ~ /^(chr|chrom|seqnames|seqname)$/) chr_idx=i
+                col=tolower(\$i)
+                if (col ~ /^(chr|chrom|seqnames|seqname)\$/) chr_idx=i
                 if (col == "start") start_idx=i
                 if (col == "end") end_idx=i
             }
@@ -108,7 +108,7 @@ process SPAN_COMPARE {
             header_done=1
         }
     }
-    { print $chr_idx,$start_idx,$end_idx }
+    { print \$chr_idx,\$start_idx,\$end_idx }
     AWK
     awk -f span_compare_bed.awk "\$diff_file" > span.differential.bed
 
@@ -130,14 +130,14 @@ process SPAN_COMPARE {
     BEGIN { OFS="\\t"; header_done=0; chr_idx=1; start_idx=2; end_idx=3; log2_idx=0; fdr_idx=0; qval_idx=0; fold_idx=0; proxy_log2=0 }
     /^#/ || /^track/ || /^browser/ { next }
     !header_done {
-        if (!isnum($2)) {
+        if (!isnum(\$2)) {
             for (i=1; i<=NF; i++) {
-                col=tolower($i)
-                if (col ~ /^(chr|chrom|seqnames|seqname)$/) chr_idx=i
+                col=tolower(\$i)
+                if (col ~ /^(chr|chrom|seqnames|seqname)\$/) chr_idx=i
                 if (col == "start") start_idx=i
                 if (col == "end") end_idx=i
                 if (col ~ /log2fc|log2foldchange|log2_fold_change|log2fold|log_fc|log2ratio|log2_ratio/) log2_idx=i
-                if (col ~ /^(fdr|false.discovery|padj|adj_p|adjp)$/) fdr_idx=i
+                if (col ~ /^(fdr|false.discovery|padj|adj_p|adjp)\$/) fdr_idx=i
                 if (col ~ /qvalue|qval|q-value/) qval_idx=i
                 if ((col ~ /fold|fc/) && log2_idx==0) fold_idx=i
             }
@@ -151,17 +151,17 @@ process SPAN_COMPARE {
     }
     {
         log2_val=""
-        if (log2_idx>0 && isnum($log2_idx)) log2_val=$log2_idx+0
-        if (log2_val=="" && fold_idx>0 && isnum($fold_idx)) { log2_val=calc_log2($fold_idx); proxy_log2=1 }
-        if (log2_val=="" && log2_idx==7 && isnum($7)) { log2_val=calc_log2($7); proxy_log2=1 }
+        if (log2_idx>0 && isnum(\$log2_idx)) log2_val=\$log2_idx+0
+        if (log2_val=="" && fold_idx>0 && isnum(\$fold_idx)) { log2_val=calc_log2(\$fold_idx); proxy_log2=1 }
+        if (log2_val=="" && log2_idx==7 && isnum(\$7)) { log2_val=calc_log2(\$7); proxy_log2=1 }
         fdr_val=""
-        if (fdr_idx>0) fdr_val=$fdr_idx
-        else if (qval_idx>0) fdr_val=$qval_idx
-        else if (NF>=9) fdr_val=$9
+        if (fdr_idx>0) fdr_val=\$fdr_idx
+        else if (qval_idx>0) fdr_val=\$qval_idx
+        else if (NF>=9) fdr_val=\$9
         fdr_val=calc_fdr(fdr_val)
         if (fdr_val <= fdr_thresh) {
-            if (log2_val > 0) print $chr_idx,$start_idx,$end_idx >> up_file
-            else if (log2_val < 0) print $chr_idx,$start_idx,$end_idx >> down_file
+            if (log2_val > 0) print \$chr_idx,\$start_idx,\$end_idx >> up_file
+            else if (log2_val < 0) print \$chr_idx,\$start_idx,\$end_idx >> down_file
         }
     }
     END {

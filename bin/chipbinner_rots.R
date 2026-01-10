@@ -51,6 +51,11 @@ tryCatch({
     use_rots <<- FALSE
 })
 
+if (use_rots && (sum(treated_idx) < 2 || sum(control_idx) < 2)) {
+    warning("ROTS requires >=2 samples per condition; falling back to simple tests")
+    use_rots <- FALSE
+}
+
 if (use_rots) {
     groups <- ifelse(conditions == opt$treated, 1, 0)
     rots_res <- ROTS::ROTS(counts, groups = groups, B = opt$bootstrap, K = opt$k_value)

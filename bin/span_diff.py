@@ -482,11 +482,21 @@ def main():
 
     use_spikein = str(args.use_spikein).lower() in {"true", "1", "yes"}
     allow_partial = str(args.allow_partial).lower() in {"true", "1", "yes"}
+    mode = str(args.mode or "").strip().lower()
 
     native_supported, signature, help_text = detect_signature(args.jar, args.java_heap)
 
+    valid_modes = {"auto", "native", "fallback"}
+    if mode not in valid_modes:
+        reason = f"invalid_mode:{mode}" if mode else "invalid_mode"
+        write_failure_outputs(args.outdir, args.group, treated, control, mode or "invalid", signature, reason, allow_partial)
+        if allow_partial:
+            sys.exit(0)
+        print("ERROR: --mode must be one of auto, native, or fallback.", file=sys.stderr)
+        sys.exit(1)
+
     chosen_mode = "fallback"
-    if args.mode == "native":
+    if mode == "native":
         if not native_supported:
             reason = "native_not_supported"
             write_failure_outputs(args.outdir, args.group, treated, control, "native", signature, reason, allow_partial)
@@ -495,7 +505,7 @@ def main():
             print("ERROR: SPAN jar does not support native compare.", file=sys.stderr)
             sys.exit(1)
         chosen_mode = "native"
-    elif args.mode == "fallback":
+    elif mode == "fallback":
         chosen_mode = "fallback"
     else:
         chosen_mode = "native" if native_supported else "fallback"

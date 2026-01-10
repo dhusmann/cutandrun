@@ -49,6 +49,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
     ch_summary_files = Channel.empty()
     ch_samples_manifest = Channel.empty()
     ch_peaks_manifest = Channel.empty()
+    ch_use_spikein = Channel.empty()
     summary_stub = file("$projectDir/assets/differential_summary_stub.tsv")
 
     def diff_enabled = params.run_diffbind || params.run_chipbinner || params.run_span_diff || params.differential_publish_manifest_only
@@ -325,7 +326,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
 
         def diff_use_spikein = params.differential_use_spikein ? params.differential_use_spikein.toString().toLowerCase() : 'auto'
         def use_spikein_default = (diff_use_spikein == 'true') || (diff_use_spikein == 'auto' && params.normalisation_mode == 'Spikein')
-        def ch_use_spikein = Channel.value(use_spikein_default)
+        ch_use_spikein = Channel.value(use_spikein_default)
         if (use_manifests && diff_use_spikein == 'auto') {
             ch_use_spikein = ch_samples_rows
                 .map { row -> row.normalisation_mode ?: '' }
@@ -500,7 +501,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
 
             ch_samples_manifest_single = ch_samples_manifest.first()
             ch_peaks_manifest_single = ch_peaks_manifest.first()
-            def span_chrom_sizes = ch_chrom_sizes
+            span_chrom_sizes = ch_chrom_sizes
             if (params.span_diff_mode == 'fallback') {
                 span_chrom_sizes = ch_chrom_sizes.ifEmpty(file("$projectDir/assets/chrom_sizes_stub.sizes"))
             }
@@ -566,7 +567,9 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             ch_summary_files.collect().map { it + summary_stub }.ifEmpty([summary_stub]),
             params.differential_publish_manifest_only,
             file("$projectDir/assets/multiqc/differential_summary_header.txt"),
-            file("$projectDir/assets/multiqc/differential_design_header.txt")
+            file("$projectDir/assets/multiqc/differential_design_header.txt"),
+            file("$projectDir/assets/multiqc/chipbinner_summary_header.txt"),
+            file("$projectDir/assets/multiqc/span_summary_header.txt")
         )
         ch_versions = ch_versions.mix(DIFFERENTIAL_SUMMARY.out.versions)
         ch_diff_summary_mqc = DIFFERENTIAL_SUMMARY.out.summary

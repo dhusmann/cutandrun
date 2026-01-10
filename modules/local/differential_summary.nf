@@ -10,10 +10,14 @@ process DIFFERENTIAL_SUMMARY {
     val manifest_only
     path summary_header
     path design_header
+    path chipbinner_header
+    path span_header
 
     output:
     path "differential_summary_mqc.tsv", emit: summary
     path "differential_design_mqc.tsv", emit: design
+    path "chipbinner_summary_mqc.tsv", emit: chipbinner_summary
+    path "span_summary_mqc.tsv", emit: span_summary
     path "versions.yml", emit: versions
 
     when:
@@ -31,6 +35,10 @@ process DIFFERENTIAL_SUMMARY {
 
     cat ${summary_header} differential_summary.tsv > differential_summary_mqc.tsv
     cat ${design_header} ${design_manifest} > differential_design_mqc.tsv
+    awk 'BEGIN{FS=OFS="\\t"} NR==1{print; next} \$1=="chipbinner"' differential_summary.tsv > chipbinner_summary.tsv
+    cat ${chipbinner_header} chipbinner_summary.tsv > chipbinner_summary_mqc.tsv
+    awk 'BEGIN{FS=OFS="\\t"} NR==1{print; next} \$1=="span"' differential_summary.tsv > span_summary.tsv
+    cat ${span_header} span_summary.tsv > span_summary_mqc.tsv
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

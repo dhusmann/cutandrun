@@ -9,6 +9,13 @@ def read_tsv(path):
         reader = csv.DictReader(handle, delimiter="\t")
         return [row for row in reader]
 
+def normalize_status(status):
+    if not status:
+        return status
+    if status.upper() == "SKIPPED":
+        return "SKIP"
+    return status
+
 
 def main():
     parser = argparse.ArgumentParser(description="Build differential summary table")
@@ -26,7 +33,7 @@ def main():
         caller = row.get("caller") or "NA"
         treated = row.get("treated_condition") or ""
         control = row.get("control_condition") or ""
-        status = row.get("status") or ""
+        status = normalize_status(row.get("status") or "")
         reason = row.get("reason") or ""
         if args.manifest_only and status == "RUN":
             status = "SKIP"
@@ -114,7 +121,7 @@ def main():
                 "chosen_minPts": row.get("chosen_minPts") or "NA",
                 "chosen_minSamps": row.get("chosen_minSamps") or "NA",
                 "mode": row.get("mode") or "NA",
-                "status": row.get("status") or "RUN",
+                "status": normalize_status(row.get("status") or "RUN"),
                 "reason": row.get("reason") or "ok",
             }
             existing = base_rows.get(key)

@@ -1,0 +1,10 @@
+#id: 'span_summary'
+#parent_id: 'differential_analysis'
+#parent_name: 'Differential analysis'
+#parent_description: 'Differential peak calling outputs'
+#section_name: 'SPAN summary'
+#description: 'Per-group SPAN summary metrics.'
+#plot_type: 'table'
+#pconfig:
+#    id: 'span_summary_table'
+#    title: 'SPAN summary'

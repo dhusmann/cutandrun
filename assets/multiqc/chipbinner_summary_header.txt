@@ -1,0 +1,10 @@
+#id: 'chipbinner_summary'
+#parent_id: 'differential_analysis'
+#parent_name: 'Differential analysis'
+#parent_description: 'Differential peak calling outputs'
+#section_name: 'ChIPBinner summary'
+#description: 'Per-group ChIPBinner summary metrics.'
+#plot_type: 'table'
+#pconfig:
+#    id: 'chipbinner_summary_table'
+#    title: 'ChIPBinner summary'

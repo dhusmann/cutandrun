@@ -1,8 +1,10 @@
 process SPAN_DIFF_RUN {
-    label { params.span_diff_mode == 'fallback' ? 'SPAN_FALLBACK' : 'SPAN_NATIVE' }
+    label params.span_diff_mode == 'fallback' ? 'SPAN_FALLBACK' : 'SPAN_NATIVE'
 
     conda "conda-forge::python=3.8.3 conda-forge::openjdk=21.0.2 bioconda::samtools=1.16.1 bioconda::bedtools=2.31.0 conda-forge::r-base=4.2.3 bioconda::bioconductor-deseq2 bioconda::bioconductor-edger"
-    container "quay.io/biocontainers/biocontainers:1.2.0--py38_0"
+    container workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container ?
+        null :
+        'quay.io/biocontainers/biocontainers:1.2.0--py38_0'
 
     input:
     tuple val(group), path(samples_manifest), path(peaks_manifest), path(chrom_sizes)
@@ -25,7 +27,7 @@ process SPAN_DIFF_RUN {
     tuple val(group), path("span.down.bed"), emit: down
     tuple val(group), path("span.summary.tsv"), emit: summary
     tuple val(group), path("span.mode.txt"), emit: mode_out
-    tuple val(group), path("span_diff_target_pooling.tsv", optional: true), emit: pooling
+    path "span_diff_target_pooling.tsv", optional: true, emit: pooling
     tuple val(group), path("span.normalization_factors.tsv", optional: true), emit: norm_factors
     path "*.pooled.bam", optional: true, emit: pooled_bam
     path "*.pooled.bam.bai", optional: true, emit: pooled_bai
@@ -62,9 +64,9 @@ process SPAN_DIFF_RUN {
     "${task.process}":
         python: \$(python --version | grep -E -o "([0-9]{1,}\\.)+[0-9]{1,}")
         java: \$(java -version 2>&1 | head -n 1 | sed -e 's/"//g')
-        bedtools: \$(bedtools --version | sed 's/bedtools v//')
-        samtools: \$(samtools --version | head -n 1 | sed 's/samtools //')
-        R: \$(R --version | head -n 1 | sed 's/.* //')
+        bedtools: \$(command -v bedtools >/dev/null 2>&1 && bedtools --version | sed 's/bedtools v//' || echo "NA")
+        samtools: \$(command -v samtools >/dev/null 2>&1 && samtools --version | head -n 1 | sed 's/samtools //' || echo "NA")
+        R: \$(command -v R >/dev/null 2>&1 && R --version | head -n 1 | sed 's/.* //' || echo "NA")
     END_VERSIONS
     """
 }

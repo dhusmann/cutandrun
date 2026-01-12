@@ -21,7 +21,10 @@ process BEDTOOLS_SORT {
 
     script:
     def args   = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
+    def prefix = task.ext.prefix ?: (meta.prefix ?: "${meta.id}")
+    if ("$intervals" == "${prefix}.${extension}") {
+        prefix = "${prefix}.sorted"
+    }
     def sizes  = sizes ? "-g $sizes" : ""
     """
     bedtools \\

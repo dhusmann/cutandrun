@@ -81,11 +81,16 @@ def main():
 
     all_callers = sorted({row.get("caller") or "" for row in peaks})
 
+    span_callers_present = True
     if args.run_span:
         span_callers = [caller for caller in all_callers if is_span_caller(caller)]
-        if not span_callers:
-            print("ERROR: run_span_diff requested but no SPAN/OmniPeak peaks found in manifest.", file=sys.stderr)
-            sys.exit(1)
+        span_callers_present = bool(span_callers)
+        if not span_callers_present:
+            print(
+                "WARNING: run_span_diff requested but no SPAN/OmniPeak peaks found in manifest; "
+                "SPAN differential will be skipped.",
+                file=sys.stderr,
+            )
 
     design_rows = []
     fail_required = False
@@ -130,7 +135,7 @@ def main():
             status = base_status
             reason = base_reason
             eligible_chipbinner = args.run_chipbinner and group_eligible
-            eligible_span = args.run_span and group_eligible
+            eligible_span = args.run_span and span_callers_present and group_eligible
             if not (args.run_chipbinner or args.run_span):
                 status = "SKIP"
                 reason = "methods_disabled"
@@ -196,7 +201,9 @@ def main():
                 "n_control": str(n_control),
                 "eligible_diffbind": "true" if eligible_diffbind else "false",
                 "eligible_chipbinner": "true" if (args.run_chipbinner and group_eligible) else "false",
-                "eligible_span": "true" if (args.run_span and group_eligible) else "false",
+                "eligible_span": "true"
+                if (args.run_span and span_callers_present and group_eligible)
+                else "false",
                 "status": status,
                 "reason": reason,
                 "ignored_conditions": ignored_conditions,

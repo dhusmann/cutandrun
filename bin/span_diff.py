@@ -339,6 +339,9 @@ def write_failure_outputs(
     signature: str,
     reason: str,
     allow_partial: bool,
+    samples: List[Dict[str, str]] = None,
+    use_spikein: bool = False,
+    backend: str = "NA",
 ) -> None:
     diff_path = os.path.join(outdir, "span.differential.tsv")
     bed_path = os.path.join(outdir, "span.differential.peaks.bed")
@@ -346,6 +349,7 @@ def write_failure_outputs(
     down_path = os.path.join(outdir, "span.down.bed")
     summary_path = os.path.join(outdir, "span.summary.tsv")
     mode_path = os.path.join(outdir, "span.mode.txt")
+    normalization_path = os.path.join(outdir, "span.normalization_factors.tsv")
 
     with open(diff_path, "w") as handle:
         handle.write("chr\tstart\tend\tlog2FC\tpval\tFDR\n")
@@ -355,6 +359,22 @@ def write_failure_outputs(
     status = "SKIP" if allow_partial else "FAIL"
     write_summary(summary_path, group, treated, control, 0, 0, 0, 0, mode, status, reason)
     write_mode(mode_path, mode, signature)
+    if samples is None:
+        samples = []
+    if samples:
+        scale_values, size_factors, use_spikein_factors = compute_spikein_factors(samples, use_spikein)
+    else:
+        scale_values = []
+        size_factors = []
+        use_spikein_factors = False
+    write_normalization_factors(
+        normalization_path,
+        samples,
+        scale_values,
+        size_factors,
+        use_spikein_factors,
+        backend,
+    )
 
 
 def compute_orientation_log2fc(
@@ -489,7 +509,19 @@ def main():
     valid_modes = {"auto", "native", "fallback"}
     if mode not in valid_modes:
         reason = f"invalid_mode:{mode}" if mode else "invalid_mode"
-        write_failure_outputs(args.outdir, args.group, treated, control, mode or "invalid", signature, reason, allow_partial)
+        write_failure_outputs(
+            args.outdir,
+            args.group,
+            treated,
+            control,
+            mode or "invalid",
+            signature,
+            reason,
+            allow_partial,
+            samples=None,
+            use_spikein=use_spikein,
+            backend=mode or "invalid",
+        )
         if allow_partial:
             sys.exit(0)
         print("ERROR: --mode must be one of auto, native, or fallback.", file=sys.stderr)
@@ -499,7 +531,19 @@ def main():
     if mode == "native":
         if not native_supported:
             reason = "native_not_supported"
-            write_failure_outputs(args.outdir, args.group, treated, control, "native", signature, reason, allow_partial)
+            write_failure_outputs(
+                args.outdir,
+                args.group,
+                treated,
+                control,
+                "native",
+                signature,
+                reason,
+                allow_partial,
+                samples=None,
+                use_spikein=use_spikein,
+                backend="native",
+            )
             if allow_partial:
                 sys.exit(0)
             print("ERROR: SPAN jar does not support native compare.", file=sys.stderr)
@@ -516,7 +560,19 @@ def main():
     samples_group = [row for row in samples if row.get("group") == args.group and row.get("condition") in {treated, control}]
     if not samples_group:
         reason = "no_samples"
-        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
+        write_failure_outputs(
+            args.outdir,
+            args.group,
+            treated,
+            control,
+            chosen_mode,
+            signature,
+            reason,
+            allow_partial,
+            samples=samples_group,
+            use_spikein=use_spikein,
+            backend=chosen_mode,
+        )
         if allow_partial:
             sys.exit(0)
         print("ERROR: No samples found for group.", file=sys.stderr)
@@ -526,7 +582,19 @@ def main():
     span_peaks = [row for row in peaks_group if is_span_caller(row.get("caller"))]
     if not span_peaks:
         reason = "no_span_peaks"
-        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
+        write_failure_outputs(
+            args.outdir,
+            args.group,
+            treated,
+            control,
+            chosen_mode,
+            signature,
+            reason,
+            allow_partial,
+            samples=samples_group,
+            use_spikein=use_spikein,
+            backend=chosen_mode,
+        )
         if allow_partial:
             sys.exit(0)
         print("ERROR: No SPAN/OmniPeak peaks found for group.", file=sys.stderr)
@@ -558,7 +626,19 @@ def main():
     missing_peaks = [row.get("sample_id") for row in samples_group if row.get("sample_id") not in peaks_by_sample]
     if missing_peaks:
         reason = "missing_peaks"
-        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
+        write_failure_outputs(
+            args.outdir,
+            args.group,
+            treated,
+            control,
+            chosen_mode,
+            signature,
+            reason,
+            allow_partial,
+            samples=samples_group,
+            use_spikein=use_spikein,
+            backend=chosen_mode,
+        )
         if allow_partial:
             sys.exit(0)
         print(f"ERROR: Missing peaks for samples: {','.join(missing_peaks)}", file=sys.stderr)
@@ -569,7 +649,19 @@ def main():
     control_samples = [row for row in samples_sorted if row.get("condition") == control]
     if not treated_samples or not control_samples:
         reason = "missing_condition"
-        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
+        write_failure_outputs(
+            args.outdir,
+            args.group,
+            treated,
+            control,
+            chosen_mode,
+            signature,
+            reason,
+            allow_partial,
+            samples=samples_sorted,
+            use_spikein=use_spikein,
+            backend=chosen_mode,
+        )
         if allow_partial:
             sys.exit(0)
         print("ERROR: Missing treated/control samples.", file=sys.stderr)
@@ -612,7 +704,19 @@ def main():
         if chosen_mode == "native":
             if not native_supported:
                 reason = "native_not_supported"
-                write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
+                write_failure_outputs(
+                    args.outdir,
+                    args.group,
+                    treated,
+                    control,
+                    chosen_mode,
+                    signature,
+                    reason,
+                    allow_partial,
+                    samples=samples_sorted,
+                    use_spikein=use_spikein,
+                    backend=chosen_mode,
+                )
                 if allow_partial:
                     sys.exit(0)
                 print("ERROR: Native SPAN compare not supported.", file=sys.stderr)
@@ -630,7 +734,19 @@ def main():
 
             if not args.chrom_sizes or not os.path.exists(args.chrom_sizes):
                 reason = "missing_chrom_sizes"
-                write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
+                write_failure_outputs(
+                    args.outdir,
+                    args.group,
+                    treated,
+                    control,
+                    chosen_mode,
+                    signature,
+                    reason,
+                    allow_partial,
+                    samples=samples_sorted,
+                    use_spikein=use_spikein,
+                    backend=chosen_mode,
+                )
                 if allow_partial:
                     sys.exit(0)
                 print("ERROR: Chrom sizes file required for native SPAN compare.", file=sys.stderr)
@@ -884,7 +1000,19 @@ def main():
         finalize_success(rows, "fallback")
     except Exception as exc:
         reason = str(exc).split("\n")[0] if exc else "failed"
-        write_failure_outputs(args.outdir, args.group, treated, control, chosen_mode, signature, reason, allow_partial)
+        write_failure_outputs(
+            args.outdir,
+            args.group,
+            treated,
+            control,
+            chosen_mode,
+            signature,
+            reason,
+            allow_partial,
+            samples=samples_sorted if "samples_sorted" in locals() else None,
+            use_spikein=use_spikein,
+            backend=chosen_mode,
+        )
         if allow_partial:
             sys.exit(0)
         print(f"ERROR: SPAN diff failed: {exc}", file=sys.stderr)

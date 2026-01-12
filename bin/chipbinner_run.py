@@ -51,6 +51,7 @@ def parse_args():
     parser.add_argument("--k-value", type=int, default=100000)
     parser.add_argument("--functional-db")
     parser.add_argument("--allow-partial", action="store_true")
+    parser.add_argument("--base-dir")
     parser.add_argument("--outdir", default=".")
     return parser.parse_args()
 
@@ -611,6 +612,18 @@ def write_error_artifact(outdir, message):
     return error_path
 
 
+def resolve_path(path, base_dir):
+    if not path or path in ("NA", "None", "none", ""):
+        return path
+    if os.path.isabs(path):
+        return path
+    if base_dir:
+        candidate = os.path.join(base_dir, path)
+        if os.path.exists(candidate):
+            return candidate
+    return path
+
+
 def main():
     args = parse_args()
     ensure_dir(args.outdir)
@@ -629,6 +642,12 @@ def main():
     samples = [row for row in samples if row.get("condition") in (treated_label, control_label)]
     if not samples:
         raise RuntimeError("No samples match contrast labels")
+
+    base_dir = os.path.abspath(args.base_dir) if args.base_dir else ""
+    if base_dir:
+        for row in samples:
+            for key in ("final_bam", "final_bai", "bigwig_path", "input_bam", "input_bai"):
+                row[key] = resolve_path(row.get(key), base_dir)
 
     sample_ids = [row.get("sample_id", "") for row in samples]
 

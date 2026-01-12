@@ -2,7 +2,7 @@ process DIFFBIND_RUN {
     label 'process_diffbind'
 
     conda "conda-forge::r-base=4.2.3 bioconda::bioconductor-diffbind conda-forge::r-jsonlite conda-forge::r-yaml"
-    container "quay.io/biocontainers/bioconductor-diffbind:3.14.0--r42_0"
+    container "quay.io/biocontainers/bioconductor-diffbind:3.16.0--r44h77050f0_1"
 
     input:
     tuple val(group), val(caller), path(records)
@@ -26,6 +26,7 @@ process DIFFBIND_RUN {
     tuple val(group), val(caller), path("diffbind.significant_down.bed", optional: true), emit: bed_down
     tuple val(group), val(caller), path("diffbind.summary.tsv"), emit: summary
     tuple val(group), val(caller), path("diffbind.samplesheet.csv"), emit: samplesheet
+    tuple val(group), val(caller), path("diffbind.samplesheet.export.csv"), emit: samplesheet_export
     tuple val(group), val(caller), path("diffbind.normalization_factors.tsv", optional: true), emit: norm_factors_out
     tuple val(group), val(caller), path("diffbind.dba.rds", optional: true), emit: dba
     tuple val(group), val(caller), path("diffbind.error.txt", optional: true), emit: error
@@ -56,6 +57,8 @@ process DIFFBIND_RUN {
         --export_sheets ${export_sheets} \
         --allow_partial ${allow_partial}
 
+    cp diffbind.samplesheet.csv diffbind.samplesheet.export.csv
+
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         R: \$(R --version | head -n 1 | sed 's/.* //')
@@ -69,6 +72,8 @@ process DIFFBIND_RUN {
 SampleID,Factor,Condition,Replicate,bamReads,Peaks,PeakCaller,Tissue
 stub,${group},stub,1,stub.bam,stub.peak,${caller},CUTRUN
 EOF
+
+    cp diffbind.samplesheet.csv diffbind.samplesheet.export.csv
 
     cat <<-EOF > diffbind.results.tsv
 chr\tstart\tend\tlog2FC\tpval\tFDR
@@ -90,14 +95,12 @@ stub\t1.0
 EOF
 
     echo "stub" > diffbind.dba.rds
+    touch diffbind.error.txt
     echo "stub" > plots/PCA.pdf
     echo "stub" > plots/correlation_heatmap.pdf
     echo "stub" > plots/MA.pdf
     echo "stub" > plots/volcano.pdf
 
-    cat <<-END_VERSIONS > versions.yml
-    "${task.process}":
-        R: stub
-    END_VERSIONS
+    printf "%s\\n" "'${task.process}':" "    R: stub" > versions.yml
     """
 }

@@ -10,11 +10,15 @@ include { PUBLISH_DIFFERENTIAL_MANIFESTS } from "../../modules/local/publish_dif
 include { RECORDS_TO_TSV as RECORDS_TO_TSV_DIFFBIND } from "../../modules/local/records_to_tsv"
 include { RECORDS_TO_TSV as RECORDS_TO_TSV_CHIPBINNER } from "../../modules/local/records_to_tsv"
 include { DIFFBIND_RUN } from "../../modules/local/diffbind_run"
+include { EXPORT_DIFFBIND_SAMPLESHEETS } from "../../modules/local/export_diffbind_samplesheets"
 include { CHIPBINNER_RUN } from "../../modules/local/chipbinner_run"
 include { CHIPBINNER_WINDOWS_CACHE } from "../../modules/local/chipbinner_windows_cache"
 include { POOL_IGG_CONTROLS } from "../../modules/local/pool_igg_controls"
 include { SPAN_DIFF_RUN } from "../../modules/local/span_diff_run"
 include { SPAN_POOLING_MANIFEST } from "../../modules/local/span_pooling_manifest"
+include { RENAME_SUMMARY as RENAME_SUMMARY_DIFFBIND } from "../../modules/local/rename_summary"
+include { RENAME_SUMMARY as RENAME_SUMMARY_CHIPBINNER } from "../../modules/local/rename_summary"
+include { RENAME_SUMMARY as RENAME_SUMMARY_SPAN } from "../../modules/local/rename_summary"
 include { ANNOTATE_REGIONS } from "../../modules/local/annotate_regions"
 include { GTF_TO_GENE_BED } from "../../modules/local/gtf_to_gene_bed"
 include { BEDTOOLS_SORT as ANNOTATION_GENE_BED_SORT } from "../../modules/local/for_patch/bedtools/sort/main"
@@ -336,7 +340,13 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                     uniq.contains('Spikein')
                 }
         }
-        ch_use_spikein = ch_use_spikein.broadcast()
+        def use_spikein_consumers = [params.run_diffbind, params.run_chipbinner, params.run_span_diff].count { it }
+        if (!(ch_use_spikein instanceof groovyx.gpars.dataflow.DataflowReadChannel)) {
+            ch_use_spikein = Channel.value(ch_use_spikein)
+        }
+        if (!params.differential_publish_manifest_only && use_spikein_consumers > 1) {
+            ch_use_spikein = ch_use_spikein.broadcast()
+        }
 
         if (params.run_diffbind && !params.differential_publish_manifest_only) {
             ch_diffbind_design = ch_design_rows
@@ -397,19 +407,28 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             )
             ch_versions = ch_versions.mix(DIFFBIND_RUN.out.versions)
 
+            if (params.export_diffbind_sheets) {
+                EXPORT_DIFFBIND_SAMPLESHEETS (
+                    DIFFBIND_RUN.out.samplesheet_export
+                )
+            }
+
             if (annotation_enabled) {
                 ch_diffbind_annot = DIFFBIND_RUN.out.results
                     .combine(ch_gene_bed_single)
-                    .map { tuple, gene_bed ->
-                        def group = tuple[0]
-                        def caller = tuple[1]
-                        def regions = tuple[2]
+                    .map { group, caller, regions, gene_bed ->
                         [ 'diffbind', group, caller, regions, gene_bed, "01_diffbind/${caller}/${group}/diffbind.results.annotated.tsv" ]
                     }
 
                 ch_annotation_requests = ch_annotation_requests.mix(ch_diffbind_annot)
             }
-            ch_diffbind_summary = DIFFBIND_RUN.out.summary.map { it[2] }
+            RENAME_SUMMARY_DIFFBIND (
+                DIFFBIND_RUN.out.summary.map { group, caller, summary ->
+                    def prefix = "${caller}_${group}".replaceAll(/[^A-Za-z0-9_.-]+/, "_")
+                    [ prefix, summary ]
+                }
+            )
+            ch_diffbind_summary = RENAME_SUMMARY_DIFFBIND.out.summary
         }
 
         if (params.run_chipbinner && !params.differential_publish_manifest_only) {
@@ -432,32 +451,39 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 .map { row -> [row.group, row] }
                 .groupTuple(by: [0])
                 .join(ch_chip_design)
-                .map { group, rows, design -> [ group, rows ] }
+                .map { item -> [ item[0], item[1] ] }
 
             ch_chip_records
-                .map { group, rows -> [ group, JsonOutput.toJson(rows) ] }
+                .map { item -> [ item[0], JsonOutput.toJson(item[1]) ] }
                 .set { ch_chip_records_json }
 
             RECORDS_TO_TSV_CHIPBINNER (
-                ch_chip_records_json.map { it[0] },
+                ch_chip_records_json.map { item -> item[0] },
                 ch_chip_records_json.map { 'NA' },
-                ch_chip_records_json.map { it[1] },
+                ch_chip_records_json.map { item -> item[1] },
                 'sample_id\tgroup\tcondition\treplicate\tfinal_bam\tfinal_bai\tbigwig_path\tspikein_scale_factor\tms_coeff\tinput_bam\tinput_bai',
-                ch_chip_records_json.map { group, json -> "chipbinner_${group}.tsv" }
+                ch_chip_records_json.map { item -> "chipbinner_${item[0]}.tsv" }
             )
             ch_versions = ch_versions.mix(RECORDS_TO_TSV_CHIPBINNER.out.versions)
 
             ch_chip_records_file = RECORDS_TO_TSV_CHIPBINNER.out.tsv
-                .map { group, caller, records_file -> [group, records_file] }
+                .map { item -> [item[0], item[2]] }
 
             ch_chip_inputs = ch_chip_records_file
                 .combine(ch_chrom_sizes.collect().map { it instanceof List ? it[0] : it })
                 .combine(ch_chipbinner_windows)
-                .map { record, chrom_sizes, windows -> [ record[0], record[1], chrom_sizes, windows ] }
+                .map { item ->
+                    def group = item[0]
+                    def records = item[1]
+                    def chrom_sizes = item[2]
+                    def windows = item[3]
+                    [ group, records, chrom_sizes, windows ]
+                }
 
             CHIPBINNER_RUN (
                 ch_chip_inputs,
                 params.differential_contrast,
+                workflow.launchDir,
                 params.chipbinner_bin_size,
                 '',
                 '',
@@ -478,15 +504,19 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             if (annotation_enabled) {
                 ch_chip_annot = CHIPBINNER_RUN.out.differential
                     .combine(ch_gene_bed_single)
-                    .map { tuple, gene_bed ->
-                        def group = tuple[0]
-                        def regions = tuple[1]
+                    .map { group, regions, gene_bed ->
                         [ 'chipbinner', group, 'NA', regions, gene_bed, "02_chipbinner/${group}/chipbinner.differential.annotated.tsv" ]
                     }
 
                 ch_annotation_requests = ch_annotation_requests.mix(ch_chip_annot)
             }
-            ch_chipbinner_summary = CHIPBINNER_RUN.out.summary.map { it[1] }
+            RENAME_SUMMARY_CHIPBINNER (
+                CHIPBINNER_RUN.out.summary.map { group, summary ->
+                    def prefix = "chipbinner_${group}".replaceAll(/[^A-Za-z0-9_.-]+/, "_")
+                    [ prefix, summary ]
+                }
+            )
+            ch_chipbinner_summary = RENAME_SUMMARY_CHIPBINNER.out.summary
         }
 
         if (params.run_span_diff && !params.differential_publish_manifest_only) {
@@ -529,10 +559,9 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             )
             ch_versions = ch_versions.mix(SPAN_DIFF_RUN.out.versions)
 
-            ch_span_pooling_files = SPAN_DIFF_RUN.out.pooling.map { it[1] }
-            ch_span_pooling_files.into { ch_span_pooling_list_in; ch_span_pooling_count_in }
-            ch_span_pooling_list = ch_span_pooling_list_in.collect()
-            ch_span_pooling_flag = ch_span_pooling_count_in.count().map { it > 0 }
+            ch_span_pooling_files = SPAN_DIFF_RUN.out.pooling
+            ch_span_pooling_list = ch_span_pooling_files.collect()
+            ch_span_pooling_flag = ch_span_pooling_list.map { it instanceof List && it.size() > 0 }
 
             SPAN_POOLING_MANIFEST (
                 ch_span_pooling_list,
@@ -543,15 +572,19 @@ workflow DIFFERENTIAL_PEAK_CALLING {
             if (annotation_enabled) {
                 ch_span_annot = SPAN_DIFF_RUN.out.differential
                     .combine(ch_gene_bed_single)
-                    .map { tuple, gene_bed ->
-                        def group = tuple[0]
-                        def regions = tuple[1]
+                    .map { group, regions, gene_bed ->
                         [ 'span', group, 'NA', regions, gene_bed, "03_span/${group}/span.differential.annotated.tsv" ]
                     }
 
                 ch_annotation_requests = ch_annotation_requests.mix(ch_span_annot)
             }
-            ch_span_summary = SPAN_DIFF_RUN.out.summary.map { it[1] }
+            RENAME_SUMMARY_SPAN (
+                SPAN_DIFF_RUN.out.summary.map { group, summary ->
+                    def prefix = "span_${group}".replaceAll(/[^A-Za-z0-9_.-]+/, "_")
+                    [ prefix, summary ]
+                }
+            )
+            ch_span_summary = RENAME_SUMMARY_SPAN.out.summary
         }
 
         if (annotation_enabled) {
@@ -564,7 +597,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
         ch_summary_files = ch_diffbind_summary.mix(ch_chipbinner_summary).mix(ch_span_summary)
         DIFFERENTIAL_SUMMARY (
             DIFFERENTIAL_DESIGN.out.design,
-            ch_summary_files.collect().map { it + summary_stub }.ifEmpty([summary_stub]),
+            ch_summary_files.collect().map { it + [summary_stub] }.ifEmpty([summary_stub]),
             params.differential_publish_manifest_only,
             file("$projectDir/assets/multiqc/differential_summary_header.txt"),
             file("$projectDir/assets/multiqc/differential_design_header.txt"),

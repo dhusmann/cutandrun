@@ -20,10 +20,10 @@ process CACHE_DIFFERENTIAL_GENE_BED {
     """
     cp ${gene_bed} differential_manifest.gene_bed.bed
 
-    coreutils_version=\$(cat --version | head -n 1 | awk '{print $NF}')
+    coreutils_version=\$(cat --version | head -n 1 | awk '{print \$NF}')
     {
         echo "\"${task.process}\":"
-        echo "    coreutils: $coreutils_version"
+        echo "    coreutils: \$coreutils_version"
     } > versions.yml
     """
 }

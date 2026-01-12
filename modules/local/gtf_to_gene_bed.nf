@@ -2,10 +2,10 @@ process GTF_TO_GENE_BED {
     tag "$gtf"
     label 'process_low'
 
-    conda "conda-forge::python=3.11.6"
+    conda "conda-forge::python=3.11"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/python:3.11.6' :
-        'quay.io/biocontainers/python:3.11.6' }"
+        'https://depot.galaxyproject.org/singularity/python:3.11' :
+        'quay.io/biocontainers/python:3.11' }"
 
     input:
     path gtf
@@ -25,7 +25,7 @@ process GTF_TO_GENE_BED {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        python: \$(python --version 2>&1 | awk '{print $NF}')
+        python: \$(python --version 2>&1 | awk '{print \$NF}')
     END_VERSIONS
     """
 }

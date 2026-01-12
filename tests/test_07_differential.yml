@@ -11,9 +11,10 @@
     - test_differential
     - test_span_diff_missing_jar_integrated
   exit_code: 1
-  stderr:
+  stdout:
     contains:
       - "omnipeaks_jar"
+      - "SPAN differential requested"
 
 - name: test_differential_manifests_only
   command: nextflow run main.nf -profile docker,test --only_peak_calling --skip_fastqc --skip_removeduplicates --skip_multiqc --skip_preseq --run_diffbind --differential_contrast Treatment,Control --differential_min_replicates 1 --differential_publish_manifest_only --input tests/assets/samplesheet_condition.csv -c tests/config/nextflow.config
@@ -69,7 +70,7 @@
         - "SKIP"
 
 - name: test_differential_summary_preserves_skip
-  command: bash -c "mkdir -p tests/output/summary_override && cat > tests/output/summary_override/design.tsv <<'EOF'\ngroup\tcaller\ttreated_condition\tcontrol_condition\tstatus\treason\nh3k27me3\tNA\tTreatment\tControl\tSKIP\tmanual_skip\nEOF\ncat > tests/output/summary_override/chipbinner.summary.tsv <<'EOF'\ngroup\tcaller\ttreated\tcontrol\tn_bins_tested\tn_fdr_pass\tn_up\tn_down\tn_clusters\tchosen_minPts\tchosen_minSamps\tstatus\treason\tenrichment_status\nh3k27me3\tNA\tTreatment\tControl\t10\t1\t1\t0\t2\t100\t100\tRUN\tok\tNOT_RUN\nEOF\npython3 bin/differential_summary.py --design tests/output/summary_override/design.tsv --summaries tests/output/summary_override/chipbinner.summary.tsv --out tests/output/summary_override/summary.tsv"
+  command: bash -c "mkdir -p tests/output/summary_override && printf '%b' 'group\tcaller\ttreated_condition\tcontrol_condition\tstatus\treason\nh3k27me3\tNA\tTreatment\tControl\tSKIP\tmanual_skip\n' > tests/output/summary_override/design.tsv && printf '%b' 'group\tcaller\ttreated\tcontrol\tn_bins_tested\tn_fdr_pass\tn_up\tn_down\tn_clusters\tchosen_minPts\tchosen_minSamps\tstatus\treason\tenrichment_status\nh3k27me3\tNA\tTreatment\tControl\t10\t1\t1\t0\t2\t100\t100\tRUN\tok\tNOT_RUN\n' > tests/output/summary_override/chipbinner.summary.tsv && python3 bin/differential_summary.py --design tests/output/summary_override/design.tsv --summaries tests/output/summary_override/chipbinner.summary.tsv --out tests/output/summary_override/summary.tsv"
   tags:
     - test_differential
     - test_differential_summary
@@ -106,14 +107,14 @@
     - path: results_diffbind_on/03_peak_calling/08_differential/01_diffbind/00_samplesheets/seacr/h3k27me3.csv
 
 - name: test_span_mode_native_requires_compare
-  command: bash -c "mkdir -p tests/output/span_native && cd tests/output/span_native && python3 ../../bin/span_diff.py --jar ../../tests/assets/omnipeaks_stub.jar --mode native --contrast Treatment,Control --group h3k27me3 --samples ../../tests/assets/span_mode/samples.tsv --peaks ../../tests/assets/span_mode/peaks.tsv --caller-priority span_default --outdir ."
+  command: bash -c "mkdir -p tests/output/span_native && python3 bin/span_diff.py --jar tests/assets/omnipeaks_stub.jar --mode native --contrast Treatment,Control --group h3k27me3 --samples tests/assets/span_mode/samples.tsv --peaks tests/assets/span_mode/peaks.tsv --caller-priority span_default --outdir tests/output/span_native"
   tags:
     - test_differential
     - test_span_mode
   exit_code: 1
 
 - name: test_span_mode_auto_fallback
-  command: bash -c "mkdir -p tests/output/span_auto && cd tests/output/span_auto && python3 ../../bin/span_diff.py --jar ../../tests/assets/omnipeaks_stub.jar --mode auto --contrast Treatment,Control --group h3k27me3 --samples ../../tests/assets/span_mode/samples.tsv --peaks ../../tests/assets/span_mode/peaks.tsv --caller-priority span_default --allow-partial true --outdir ."
+  command: bash -c "mkdir -p tests/output/span_auto && python3 bin/span_diff.py --jar tests/assets/omnipeaks_stub.jar --mode auto --contrast Treatment,Control --group h3k27me3 --samples tests/assets/span_mode/samples.tsv --peaks tests/assets/span_mode/peaks.tsv --caller-priority span_default --allow-partial true --outdir tests/output/span_auto"
   tags:
     - test_differential
     - test_span_mode
@@ -145,7 +146,11 @@
     - path: results_chipbinner_stub/03_peak_calling/08_differential/02_chipbinner/g1/chipbinner.normalization_factors.tsv
 
 - name: test_chipbinner_use_input_missing_fail
-  command: bash -c "mkdir -p tests/output/chipbinner_missing && cat > tests/output/chipbinner_missing/samples.tsv <<'EOF'\nsample_id\tgroup\tcondition\treplicate\tfinal_bam\tfinal_bai\tbigwig_path\tspikein_scale_factor\tms_coeff\tinput_bam\tinput_bai\ns1\tg1\tTreatment\t1\tNA\tNA\tNA\tNA\tNA\tNA\tNA\ns2\tg1\tControl\t1\tNA\tNA\tNA\tNA\tNA\tNA\tNA\nEOF\ncat > tests/output/chipbinner_missing/chrom.sizes <<'EOF'\nchr1\t1000\nEOF\npython3 bin/chipbinner_run.py --samples tests/output/chipbinner_missing/samples.tsv --group g1 --contrast Treatment,Control --chrom-sizes tests/output/chipbinner_missing/chrom.sizes --bin-size 200 --use-input --outdir tests/output/chipbinner_missing/out"
+  command: >
+    bash -c "mkdir -p tests/output/chipbinner_missing &&
+    printf 'sample_id\tgroup\tcondition\treplicate\tfinal_bam\tfinal_bai\tbigwig_path\tspikein_scale_factor\tms_coeff\tinput_bam\tinput_bai\ns1\tg1\tTreatment\t1\tNA\tNA\tNA\tNA\tNA\tNA\tNA\ns2\tg1\tControl\t1\tNA\tNA\tNA\tNA\tNA\tNA\tNA\n' > tests/output/chipbinner_missing/samples.tsv &&
+    printf 'chr1\t1000\n' > tests/output/chipbinner_missing/chrom.sizes &&
+    python3 bin/chipbinner_run.py --samples tests/output/chipbinner_missing/samples.tsv --group g1 --contrast Treatment,Control --chrom-sizes tests/output/chipbinner_missing/chrom.sizes --bin-size 200 --use-input --outdir tests/output/chipbinner_missing/out"
   tags:
     - test_differential
     - test_chipbinner_use_input
@@ -155,7 +160,11 @@
       - "input BAMs are missing"
 
 - name: test_chipbinner_use_input_missing_allow_partial
-  command: bash -c "mkdir -p tests/output/chipbinner_missing_partial && cat > tests/output/chipbinner_missing_partial/samples.tsv <<'EOF'\nsample_id\tgroup\tcondition\treplicate\tfinal_bam\tfinal_bai\tbigwig_path\tspikein_scale_factor\tms_coeff\tinput_bam\tinput_bai\ns1\tg1\tTreatment\t1\tNA\tNA\tNA\tNA\tNA\tNA\tNA\ns2\tg1\tControl\t1\tNA\tNA\tNA\tNA\tNA\tNA\tNA\nEOF\ncat > tests/output/chipbinner_missing_partial/chrom.sizes <<'EOF'\nchr1\t1000\nEOF\npython3 bin/chipbinner_run.py --samples tests/output/chipbinner_missing_partial/samples.tsv --group g1 --contrast Treatment,Control --chrom-sizes tests/output/chipbinner_missing_partial/chrom.sizes --bin-size 200 --use-input --allow-partial --outdir tests/output/chipbinner_missing_partial/out"
+  command: >
+    bash -c "mkdir -p tests/output/chipbinner_missing_partial &&
+    printf 'sample_id\tgroup\tcondition\treplicate\tfinal_bam\tfinal_bai\tbigwig_path\tspikein_scale_factor\tms_coeff\tinput_bam\tinput_bai\ns1\tg1\tTreatment\t1\tNA\tNA\tNA\tNA\tNA\tNA\tNA\ns2\tg1\tControl\t1\tNA\tNA\tNA\tNA\tNA\tNA\tNA\n' > tests/output/chipbinner_missing_partial/samples.tsv &&
+    printf 'chr1\t1000\n' > tests/output/chipbinner_missing_partial/chrom.sizes &&
+    python3 bin/chipbinner_run.py --samples tests/output/chipbinner_missing_partial/samples.tsv --group g1 --contrast Treatment,Control --chrom-sizes tests/output/chipbinner_missing_partial/chrom.sizes --bin-size 200 --use-input --allow-partial --outdir tests/output/chipbinner_missing_partial/out"
   tags:
     - test_differential
     - test_chipbinner_use_input

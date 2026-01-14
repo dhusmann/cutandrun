@@ -115,6 +115,7 @@ compute_cluster_labels <- function(cluster_ids, counts_mat, conds, treated, cont
         labels[] <- "NA"
         return(labels)
     }
+    labels[is.na(cluster_ids)] <- "NA"
     treated_idx <- conds == treated
     control_idx <- conds == control
     for (cid in unique(cluster_ids)) {

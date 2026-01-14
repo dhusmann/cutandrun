@@ -224,7 +224,14 @@ results$cluster_label_3clusters <- cluster_labels_3
 
 write.table(results, "chipbinner.differential.tsv", sep = "\t", quote = FALSE, row.names = FALSE)
 
-sig <- results[results$FDR <= opt$fdr & abs(results$log2FC) >= opt$lfc, , drop = FALSE]
+sig <- results[
+    !is.na(results$FDR) &
+        !is.na(results$log2FC) &
+        results$FDR <= opt$fdr &
+        abs(results$log2FC) >= opt$lfc,
+    ,
+    drop = FALSE
+]
 up <- sig[sig$log2FC > 0, , drop = FALSE]
 down <- sig[sig$log2FC < 0, , drop = FALSE]
 

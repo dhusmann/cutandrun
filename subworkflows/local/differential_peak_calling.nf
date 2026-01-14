@@ -341,11 +341,12 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                 }
         }
         def use_spikein_consumers = [params.run_diffbind, params.run_chipbinner, params.run_span_diff].count { it }
-        if (!(ch_use_spikein instanceof groovyx.gpars.dataflow.DataflowReadChannel)) {
-            ch_use_spikein = Channel.value(ch_use_spikein)
-        }
         if (!params.differential_publish_manifest_only && use_spikein_consumers > 1) {
-            ch_use_spikein = ch_use_spikein.broadcast()
+            ch_use_spikein = (ch_use_spikein instanceof groovyx.gpars.dataflow.DataflowReadChannel)
+                ? ch_use_spikein.broadcast()
+                : Channel.value(ch_use_spikein).broadcast()
+        } else if (!(ch_use_spikein instanceof groovyx.gpars.dataflow.DataflowReadChannel)) {
+            ch_use_spikein = Channel.value(ch_use_spikein)
         }
 
         if (params.run_diffbind && !params.differential_publish_manifest_only) {

@@ -24,6 +24,7 @@ workflow PREPARE_PEAKCALLING {
     main:
     ch_versions = Channel.empty()
     ch_bedgraph = Channel.empty()
+    ch_spikein_scale_factors = Channel.empty()
     def norm_scope = normalisation_scope ?: 'all'
     def igg_scope  = igg_scale_scope ?: 'legacy'
     def median = { List values ->
@@ -113,6 +114,10 @@ workflow PREPARE_PEAKCALLING {
             NORMALISATION_FACTORS_REPORT ( ch_norm_factors )
             ch_versions = ch_versions.mix(NORMALISATION_FACTORS_REPORT.out.versions)
         }
+
+        ch_bam_scale_factor
+            .map { meta, bam, scale -> [ meta, scale ] }
+            .set { ch_spikein_scale_factors }
     }
     else if (norm_mode == "None") {
         /*
@@ -302,4 +307,5 @@ workflow PREPARE_PEAKCALLING {
     bedgraph = UCSC_BEDCLIP.out.bedgraph        // channel: [ val(meta), [ bedgraph ] ]
     bigwig   = UCSC_BEDGRAPHTOBIGWIG.out.bigwig // channel: [ val(meta), [ bigwig ] ]
     versions = ch_versions                      // channel: [ versions.yml ]
+    spikein_scale_factors = ch_spikein_scale_factors // channel: [ val(meta), scale_factor ]
 }

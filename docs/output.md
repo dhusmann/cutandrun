@@ -30,7 +30,8 @@
      - 6.7. [GoPeaks peak calling](#GoPeakspeakcalling)
      - 6.8. [epic2 peak calling](#epic2peakcalling)
      - 6.9. [SPAN/OmniPeaks peak calling](#SPANpeakcalling)
-     - 6.10. [Consensus Peaks](#ConsensusPeaks)
+     - 6.10. [Differential peak calling](#DifferentialPeakCalling)
+     - 6.11. [Consensus Peaks](#ConsensusPeaks)
 - 7. [Peak-based QC](#Peak-basedQC)
      - 7.1. [Peak Counts](#PeakCounts)
      - 7.2. [Peak Reproducibility](#PeakReproducibility)
@@ -425,7 +426,52 @@ epic2 callers require pooled controls; see the pooled controls section above.
 
 SPAN/OmniPeaks callers require pooled controls and the `--omnipeaks_jar` parameter.
 
-### 6.10. <a name='ConsensusPeaks'></a>Consensus Peaks
+### 6.10. <a name='DifferentialPeakCalling'></a>Differential peak calling
+
+<details markdown="1">
+<summary>Output files</summary>
+
+- `03_peak_calling/06_differential/00_manifests/`
+  - `differential_manifest.samples.tsv`: per-sample metadata for posthoc differential runs.
+  - `differential_manifest.peaks.tsv`: per-sample peak paths for each caller.
+  - `differential_manifest.run_meta.json`: run metadata (callers, reference, default contrast).
+- `03_peak_calling/06_differential/01_diffbind/00_samplesheets/<caller>/`
+  - `<group>.diffbind.csv`: DiffBind samplesheet for each group/caller.
+- `03_peak_calling/06_differential/01_diffbind/<caller>/<group>/`
+  - `diffbind.results.tsv`: differential result table.
+  - `diffbind.results.annotated.tsv`: annotated differential results.
+  - `diffbind.significant.bed`: significant regions.
+  - `diffbind.significant_up.bed`: regions enriched in treated.
+  - `diffbind.significant_down.bed`: regions enriched in control.
+  - `diffbind.summary.tsv`: per-group summary for MultiQC.
+  - `plots/*.pdf`: diagnostic plots (PCA/correlation).
+- `03_peak_calling/06_differential/02_chipbinner/<group>/`
+  - `bins/*.bed`: genome-wide bins.
+  - `counts/*.tsv`: bin count matrices.
+  - `clustering/*.tsv`: clustering diagnostics.
+  - `differential/*.tsv`: differential results.
+  - `bed/*.bed`: significant differential bins.
+  - `plots/*.pdf`: diagnostic plots.
+  - `chipbinner.summary.tsv`: per-group summary for MultiQC.
+- `03_peak_calling/06_differential/03_span/<group>/`
+  - `span.differential.tsv`: differential results.
+  - `span.differential.bed`: significant regions.
+  - `span.differential.annotated.tsv`: annotated differential results.
+  - `span.significant_up.bed`: regions enriched in treated.
+  - `span.significant_down.bed`: regions enriched in control.
+  - `span.summary.tsv`: per-group summary for MultiQC.
+- `03_peak_calling/06_differential/04_cross_comparison/`
+  - `overlap_callers.tsv`: overlap between DiffBind results across callers.
+  - `overlap_methods.tsv`: overlap between DiffBind/ChIPBinner/SPAN results.
+- `03_peak_calling/06_differential/multiqc/`
+  - `differential.summary.all_methods.tsv`: merged summary table.
+  - `differential.skipped.tsv`: skipped groups/callers with reasons.
+
+</details>
+
+Differential peak calling is enabled with `--run_diffbind`, `--run_chipbinner`, and/or `--run_span_diff`. A contrast definition (`--differential_contrast "TREATED,CONTROL"`) is required to set the log2FC direction. The pipeline can also run in posthoc mode via `--differential_from_run` to reuse an existing run directory.
+
+### 6.11. <a name='ConsensusPeaks'></a>Consensus Peaks
 
 <details markdown="1">
 <summary>Output files</summary>

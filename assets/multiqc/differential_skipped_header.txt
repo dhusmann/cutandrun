@@ -1,0 +1,11 @@
+#id: 'differential_skipped'
+#parent_id: 'peak_qc'
+#parent_name: 'Peak QC'
+#parent_description: 'Differential peak calling skipped comparisons'
+#section_name: 'Differential Peak Calling Skipped'
+#description: 'Comparisons skipped due to missing conditions or replicate constraints'
+#plot_type: 'table'
+#anchor: 'differential_skipped'
+#pconfig:
+#    id: 'differential_skipped_table'
+#    title: 'Differential Peak Calling Skipped'

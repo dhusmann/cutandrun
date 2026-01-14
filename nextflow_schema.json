@@ -10,7 +10,10 @@
             "type": "object",
             "fa_icon": "fas fa-terminal",
             "description": "Define where the pipeline should find input data and save output data.",
-            "required": ["input", "outdir"],
+            "required": [
+                "input",
+                "outdir"
+            ],
             "properties": {
                 "input": {
                     "type": "string",
@@ -329,14 +332,24 @@
                     "default": "Spikein",
                     "fa_icon": "fab fa-buffer",
                     "description": "Sets the target read normalisation mode. Options are: [\"Spikein\", \"RPKM\", \"CPM\", \"BPM\", \"None\" ]",
-                    "enum": ["Spikein", "RPKM", "CPM", "BPM", "None"]
+                    "enum": [
+                        "Spikein",
+                        "RPKM",
+                        "CPM",
+                        "BPM",
+                        "None"
+                    ]
                 },
                 "normalisation_scope": {
                     "type": "string",
                     "default": "all",
                     "fa_icon": "fab fa-buffer",
                     "description": "Scope for spike-in normalisation when normalisation_mode is Spikein. Options are: [all, group, group_condition].",
-                    "enum": ["all", "group", "group_condition"]
+                    "enum": [
+                        "all",
+                        "group",
+                        "group_condition"
+                    ]
                 },
                 "normalisation_binsize": {
                     "type": "integer",
@@ -354,7 +367,10 @@
                     "default": "standard",
                     "fa_icon": "fas fa-align-justify",
                     "description": "Convenience preset for peak callers. Options are: [standard, extended]. Ignored if --peakcaller is set.",
-                    "enum": ["standard", "extended"]
+                    "enum": [
+                        "standard",
+                        "extended"
+                    ]
                 },
                 "use_control": {
                     "type": "boolean",
@@ -379,7 +395,11 @@
                     "default": "legacy",
                     "fa_icon": "fas fa-align-justify",
                     "description": "Control scaling scope for IgG/background samples. Options are: [legacy, group_condition, sample].",
-                    "enum": ["legacy", "group_condition", "sample"]
+                    "enum": [
+                        "legacy",
+                        "group_condition",
+                        "sample"
+                    ]
                 },
                 "seacr_peak_threshold": {
                     "type": "number",
@@ -392,14 +412,20 @@
                     "default": "non",
                     "fa_icon": "fas fa-align-justify",
                     "description": "SEACR normalization. ",
-                    "enum": ["non", "norm"]
+                    "enum": [
+                        "non",
+                        "norm"
+                    ]
                 },
                 "seacr_stringent": {
                     "type": "string",
                     "default": "stringent",
                     "fa_icon": "fas fa-align-justify",
                     "description": "SEACR stringency.",
-                    "enum": ["stringent", "relaxed"]
+                    "enum": [
+                        "stringent",
+                        "relaxed"
+                    ]
                 },
                 "macs2_qvalue": {
                     "type": "number",
@@ -463,13 +489,19 @@
                     "default": "group",
                     "fa_icon": "fas fa-align-justify",
                     "description": "Specifies what samples to group together for consensus peaks. Options are [group, all]",
-                    "enum": ["group", "all"]
+                    "enum": [
+                        "group",
+                        "all"
+                    ]
                 },
                 "consensus_grouping": {
                     "type": "string",
                     "fa_icon": "fas fa-align-justify",
                     "description": "Grouping key for consensus peaks when consensus_peak_mode is group. Options are [group, group_condition]. Defaults to group_condition when the samplesheet has a condition column, otherwise group.",
-                    "enum": ["group", "group_condition"]
+                    "enum": [
+                        "group",
+                        "group_condition"
+                    ]
                 },
                 "replicate_threshold": {
                     "type": "number",
@@ -482,6 +514,241 @@
                     "default": true,
                     "fa_icon": "fas fa-align-justify",
                     "description": "Show gene names instead of symbols in IGV browser sessions"
+                },
+                "run_diffbind": {
+                    "type": "boolean",
+                    "default": false,
+                    "fa_icon": "fas fa-exchange-alt",
+                    "description": "Enable DiffBind differential binding analysis."
+                },
+                "run_chipbinner": {
+                    "type": "boolean",
+                    "default": false,
+                    "fa_icon": "fas fa-exchange-alt",
+                    "description": "Enable ChIPBinner differential analysis."
+                },
+                "run_span_diff": {
+                    "type": "boolean",
+                    "default": false,
+                    "fa_icon": "fas fa-exchange-alt",
+                    "description": "Enable SPAN/OmniPeak differential analysis."
+                },
+                "differential_contrast": {
+                    "type": "string",
+                    "default": "treated,control",
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Contrast definition for differential analysis (treated,control)."
+                },
+                "differential_min_replicates": {
+                    "type": "integer",
+                    "default": 2,
+                    "fa_icon": "fas fa-sort-numeric-down",
+                    "description": "Minimum replicates per condition per group."
+                },
+                "differential_use_spikein": {
+                    "type": "string",
+                    "default": "auto",
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Use spike-in scale factors for differential normalization (auto|true|false)."
+                },
+                "differential_allow_partial": {
+                    "type": "boolean",
+                    "default": false,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Allow skipping invalid comparisons instead of failing."
+                },
+                "differential_from_run": {
+                    "type": "string",
+                    "default": null,
+                    "fa_icon": "fas fa-folder-open",
+                    "description": "Prior run outdir for differential-only mode."
+                },
+                "differential_publish_manifest_only": {
+                    "type": "boolean",
+                    "default": false,
+                    "fa_icon": "fas fa-file-alt",
+                    "description": "Generate differential manifests and design tables only."
+                },
+                "differential_groups": {
+                    "type": "string",
+                    "default": null,
+                    "fa_icon": "fas fa-filter",
+                    "description": "Comma-separated list of groups to include in differential analysis."
+                },
+                "differential_callers": {
+                    "type": "string",
+                    "default": null,
+                    "fa_icon": "fas fa-filter",
+                    "description": "Comma-separated list of peak callers to include in DiffBind."
+                },
+                "differential_multiqc_report": {
+                    "type": "boolean",
+                    "default": false,
+                    "fa_icon": "fas fa-chart-bar",
+                    "description": "Generate a differential-only MultiQC report."
+                },
+                "diffbind_fdr": {
+                    "type": "number",
+                    "default": 0.05,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "FDR cutoff for DiffBind."
+                },
+                "diffbind_lfc": {
+                    "type": "number",
+                    "default": 1.0,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Absolute log2FC cutoff for DiffBind."
+                },
+                "diffbind_min_overlap": {
+                    "type": "integer",
+                    "default": 2,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Minimum overlap for DiffBind counting."
+                },
+                "diffbind_backend": {
+                    "type": "string",
+                    "default": "DESeq2",
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Backend for DiffBind (DESeq2 or edgeR)."
+                },
+                "diffbind_recenter_peaks": {
+                    "type": "boolean",
+                    "default": false,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Recenter peaks around summits in DiffBind."
+                },
+                "diffbind_summits": {
+                    "type": "integer",
+                    "default": 0,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Summit window width for DiffBind (0 uses full peaks)."
+                },
+                "diffbind_norm_method": {
+                    "type": "string",
+                    "default": "native",
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "DiffBind normalization method when not using spike-in."
+                },
+                "diffbind_extra_params": {
+                    "type": "string",
+                    "default": null,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "JSON/YAML file with extra DiffBind parameters."
+                },
+                "export_diffbind_sheets": {
+                    "type": "boolean",
+                    "default": true,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Export DiffBind sample sheets."
+                },
+                "chipbinner_ms_coeffs": {
+                    "type": "string",
+                    "default": null,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Optional MS-based coefficients for ChIPBinner normalization."
+                },
+                "chipbinner_bin_size": {
+                    "type": "integer",
+                    "default": 10000,
+                    "fa_icon": "fas fa-align-justify",
+                    "enum": [1000, 5000, 10000, 25000],
+                    "description": "Bin size for ChIPBinner (1000, 5000, 10000, 25000)."
+                },
+                "chipbinner_windows_dir": {
+                    "type": "string",
+                    "default": null,
+                    "fa_icon": "fas fa-folder-open",
+                    "description": "Directory with prebuilt ChIPBinner windows."
+                },
+                "chipbinner_use_input": {
+                    "type": "boolean",
+                    "default": false,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Use input/background for ChIPBinner (if available)."
+                },
+                "chipbinner_pseudocount": {
+                    "type": "integer",
+                    "default": 1,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Pseudocount added before log transforms in ChIPBinner."
+                },
+                "chipbinner_hdbscan_grid_minpts": {
+                    "type": "string",
+                    "default": "100,200,500,1000",
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "HDBSCAN minPts grid values for ChIPBinner."
+                },
+                "chipbinner_hdbscan_grid_minsamps": {
+                    "type": "string",
+                    "default": "100,200,500,1000",
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "HDBSCAN minSamps grid values for ChIPBinner."
+                },
+                "chipbinner_fdr": {
+                    "type": "number",
+                    "default": 0.05,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "FDR cutoff for ChIPBinner differential results."
+                },
+                "chipbinner_lfc": {
+                    "type": "number",
+                    "default": 1.0,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Absolute log2FC cutoff for ChIPBinner."
+                },
+                "chipbinner_bootstrap": {
+                    "type": "integer",
+                    "default": 1000,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "ROTS bootstrap iterations for ChIPBinner."
+                },
+                "chipbinner_k_value": {
+                    "type": "integer",
+                    "default": 100000,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "ROTS K parameter for ChIPBinner."
+                },
+                "chipbinner_functional_db": {
+                    "type": "string",
+                    "default": null,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Optional functional database for ChIPBinner enrichment."
+                },
+                "span_diff_mode": {
+                    "type": "string",
+                    "default": "auto",
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "SPAN differential mode (auto|native|fallback)."
+                },
+                "span_diff_fdr": {
+                    "type": "number",
+                    "default": 0.05,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "FDR cutoff for SPAN differential."
+                },
+                "span_diff_gap": {
+                    "type": "integer",
+                    "default": 5,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Gap parameter for SPAN differential."
+                },
+                "span_diff_bin": {
+                    "type": "integer",
+                    "default": 200,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Bin size parameter for SPAN differential."
+                },
+                "span_diff_java_heap": {
+                    "type": "string",
+                    "default": "8G",
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Java heap size for SPAN differential."
+                },
+                "span_fallback_backend": {
+                    "type": "string",
+                    "default": "DESeq2",
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Backend for SPAN fallback differential (DESeq2 or edgeR)."
                 }
             },
             "fa_icon": "fas fa-cog"
@@ -666,7 +933,14 @@
                     "description": "Method used to save pipeline results to output directory.",
                     "help_text": "The Nextflow `publishDir` option specifies which intermediate files should be saved to the output directory. This option tells the pipeline what method should be used to move these files. See [Nextflow docs](https://www.nextflow.io/docs/latest/process.html#publishdir) for details.",
                     "fa_icon": "fas fa-copy",
-                    "enum": ["symlink", "rellink", "link", "copy", "copyNoFollow", "move"],
+                    "enum": [
+                        "symlink",
+                        "rellink",
+                        "link",
+                        "copy",
+                        "copyNoFollow",
+                        "move"
+                    ],
                     "hidden": true
                 },
                 "singularity_pull_docker_container": {

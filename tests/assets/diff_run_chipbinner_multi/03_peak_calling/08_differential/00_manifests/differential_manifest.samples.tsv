@@ -1,0 +1,5 @@
+sample_id	group	condition	replicate	final_bam	final_bai	normalisation_mode	spikein_scale_factor	ms_coeff	bigwig_path	input_bam	input_bai
+g1_treat	g1	Treatment	1	NA	NA	NA	NA	NA	NA	tests/assets/diff_run_chipbinner_multi/inputs/input_g1.bam	tests/assets/diff_run_chipbinner_multi/inputs/input_g1.bam.bai
+g1_ctrl	g1	Control	1	NA	NA	NA	NA	NA	NA	tests/assets/diff_run_chipbinner_multi/inputs/input_g1.bam	tests/assets/diff_run_chipbinner_multi/inputs/input_g1.bam.bai
+g2_treat	g2	Treatment	1	NA	NA	NA	NA	NA	NA	tests/assets/diff_run_chipbinner_multi/inputs/input_g2.bam	tests/assets/diff_run_chipbinner_multi/inputs/input_g2.bam.bai
+g2_ctrl	g2	Control	1	NA	NA	NA	NA	NA	NA	tests/assets/diff_run_chipbinner_multi/inputs/input_g2.bam	tests/assets/diff_run_chipbinner_multi/inputs/input_g2.bam.bai

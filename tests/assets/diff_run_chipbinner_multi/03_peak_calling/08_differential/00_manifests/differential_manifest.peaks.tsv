@@ -1,0 +1,9 @@
+sample_id	group	condition	caller	peaks_path	peaks_format	replicate
+g1_treat	g1	Treatment	seacr	NA	bed	1
+g1_ctrl	g1	Control	seacr	NA	bed	1
+g2_treat	g2	Treatment	seacr	NA	bed	1
+g2_ctrl	g2	Control	seacr	NA	bed	1
+g1_treat	g1	Treatment	span_default	NA	bed	1
+g1_ctrl	g1	Control	span_default	NA	bed	1
+g2_treat	g2	Treatment	span_default	NA	bed	1
+g2_ctrl	g2	Control	span_default	NA	bed	1

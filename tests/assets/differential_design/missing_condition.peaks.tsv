@@ -1,0 +1,4 @@
+sample_id	group	condition	replicate	caller	peaks_path	peaks_format
+g1_t1	group_missing	Treatment	1	seacr	/path/peaks1.bed	bed
+g2_t1	group_ok	Treatment	1	seacr	/path/peaks2.bed	bed
+g2_c1	group_ok	Control	1	seacr	/path/peaks3.bed	bed

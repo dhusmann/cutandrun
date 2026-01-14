@@ -20,6 +20,7 @@ class WorkflowCutandrun {
 
         genomeExistsError(params, log)
         validatePeakCallerParams(params, log)
+        validateDifferentialParams(params)
 
         if (!params.fasta) {
             Nextflow.error "Genome fasta file not specified with e.g. '--fasta genome.fa' or via a detectable config file."
@@ -92,6 +93,55 @@ class WorkflowCutandrun {
 
         if (params.peakcaller_preset && !['standard','extended'].contains(params.peakcaller_preset.toLowerCase())) {
             Nextflow.error "Invalid --peakcaller_preset value '${params.peakcaller_preset}'. Valid options: standard, extended."
+        }
+    }
+
+    //
+    // Validate differential analysis parameters
+    //
+    private static void validateDifferentialParams(params) {
+        def diff_enabled = params.run_diffbind || params.run_chipbinner || params.run_span_diff || params.differential_publish_manifest_only
+        if (diff_enabled) {
+            if (!params.run_peak_calling) {
+                Nextflow.error "Differential analysis requires peak calling outputs. Please ensure peak calling is enabled."
+            }
+            if (!params.differential_contrast) {
+                Nextflow.error "Differential analysis requires --differential_contrast (e.g. treated,control)."
+            }
+            def contrast = params.differential_contrast.toString().split(',').collect { it.trim() }.findAll { it }
+            if (contrast.size() != 2) {
+                Nextflow.error "Invalid --differential_contrast '${params.differential_contrast}'. Expected two comma-separated labels."
+            }
+        }
+
+        if (params.run_span_diff) {
+            if (!params.omnipeaks_jar) {
+                Nextflow.error "SPAN differential requested but --omnipeaks_jar was not provided."
+            }
+            def jar_path = new File(params.omnipeaks_jar.toString())
+            if (!jar_path.exists()) {
+                Nextflow.error "SPAN differential requested but --omnipeaks_jar path does not exist: ${params.omnipeaks_jar}"
+            }
+        }
+
+        if (params.differential_use_spikein && !['auto','true','false'].contains(params.differential_use_spikein.toString())) {
+            Nextflow.error "Invalid --differential_use_spikein value '${params.differential_use_spikein}'. Valid options: auto, true, false."
+        }
+
+        if (params.span_diff_mode && !['auto','native','fallback'].contains(params.span_diff_mode.toString())) {
+            Nextflow.error "Invalid --span_diff_mode value '${params.span_diff_mode}'. Valid options: auto, native, fallback."
+        }
+
+        if (params.diffbind_backend && !['DESeq2','edgeR'].contains(params.diffbind_backend.toString())) {
+            Nextflow.error "Invalid --diffbind_backend value '${params.diffbind_backend}'. Valid options: DESeq2, edgeR."
+        }
+
+        if (params.span_fallback_backend && !['DESeq2','edgeR'].contains(params.span_fallback_backend.toString())) {
+            Nextflow.error "Invalid --span_fallback_backend value '${params.span_fallback_backend}'. Valid options: DESeq2, edgeR."
+        }
+
+        if (params.differential_min_replicates && params.differential_min_replicates.toInteger() < 1) {
+            Nextflow.error "Invalid --differential_min_replicates value '${params.differential_min_replicates}'. Must be >= 1."
         }
     }
 

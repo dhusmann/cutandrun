@@ -65,6 +65,7 @@ WorkflowMain.initialise(workflow, params, log, args)
 */
 
 include { CUTANDRUN } from './workflows/cutandrun'
+include { DIFFERENTIAL_ONLY } from './workflows/differential_only'
 
 workflow NFCORE_CUTANDRUN {
     /*

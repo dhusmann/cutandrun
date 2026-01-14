@@ -44,10 +44,47 @@ class WorkflowMain {
         // Check AWS batch settings
         NfcoreTemplate.awsBatch(workflow, params)
 
-        // Check input has been provided
-        if (!params.input) {
+        // Check input has been provided unless running differential-only
+        def differential_only = isDifferentialOnly(workflow, params)
+        if (!params.input && !(differential_only && params.differential_from_run)) {
             Nextflow.error("Please provide an input samplesheet to the pipeline e.g. '--input samplesheet.csv'")
         }
+    }
+
+    //
+    // Detect whether the workflow is running the differential-only entrypoint
+    //
+    public static boolean isDifferentialOnly(workflow, params = null) {
+        def entry = getWorkflowEntryName(workflow)
+        if (entry) {
+            return entry?.toString()?.toUpperCase() == 'DIFFERENTIAL_ONLY'
+        }
+        return false
+    }
+
+    //
+    // Get the entrypoint name in a Nextflow-version-safe way
+    //
+    private static String getWorkflowEntryName(workflow) {
+        if (!workflow) {
+            return null
+        }
+        if (workflow.hasProperty('entry')) {
+            return workflow.entry
+        }
+        if (workflow.hasProperty('entryName')) {
+            return workflow.entryName
+        }
+        if (workflow.manifest && workflow.manifest.hasProperty('entryName')) {
+            return workflow.manifest.entryName
+        }
+        if (workflow.commandLine) {
+            def matcher = (workflow.commandLine =~ /(?:^|\\s)-entry(?:=|\\s+)(\\S+)/)
+            if (matcher) {
+                return matcher[0][1]
+            }
+        }
+        return null
     }
 
     //

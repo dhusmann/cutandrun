@@ -1,0 +1,10 @@
+#id: 'differential_summary'
+#parent_id: 'differential_analysis'
+#parent_name: 'Differential analysis'
+#parent_description: 'Differential peak calling outputs'
+#section_name: 'Differential analysis summary'
+#description: 'Summary of differential analysis across methods.'
+#plot_type: 'table'
+#pconfig:
+#    id: 'differential_summary_table'
+#    title: 'Differential summary'

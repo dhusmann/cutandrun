@@ -6,8 +6,10 @@
 
 include { paramsSummaryLog; paramsSummaryMap } from 'plugin/nf-validation'
 
-// Validate input parameters in specialised library
-WorkflowCutandrun.initialise(params, log)
+// Validate input parameters in specialised library (skip for differential-only entrypoint)
+if (!WorkflowMain.isDifferentialOnly(workflow, params)) {
+    WorkflowCutandrun.initialise(params, log)
+}
 def logo = NfcoreTemplate.logo(workflow, params.monochrome_logs)
 def citation = '\n' + WorkflowMain.citation(workflow) + '\n'
 def summary_params = paramsSummaryMap(workflow)
@@ -35,7 +37,8 @@ if(params.normalisation_mode == "Spikein") {
 }
 
 // Check mandatory parameters that cannot be checked in the groovy lib as we want a channel for them
-if (params.input) { ch_input = file(params.input) } else { exit 1, "Input samplesheet not specified!" }
+// NOTE: Input validation is handled in WorkflowMain.initialise with entrypoint-aware gating.
+ch_input = params.input ? file(params.input) : null
 
 ch_blacklist = Channel.empty()
 if (params.blacklist) {
@@ -142,6 +145,7 @@ include { CONSENSUS_PEAKS as CONSENSUS_PEAKS_ALL           } from "../subworkflo
 include { EXTRACT_FRAGMENTS                                } from "../subworkflows/local/extract_fragments"
 include { PREPARE_PEAKCALLING                              } from "../subworkflows/local/prepare_peakcalling"
 include { PEAK_CALLING_EXTENDED                            } from "../subworkflows/local/peak_calling_extended"
+include { DIFFERENTIAL_PEAK_CALLING                        } from "../subworkflows/local/differential_peak_calling"
 include { DEEPTOOLS_QC                                     } from "../subworkflows/local/deeptools_qc"
 include { PEAK_QC                                          } from "../subworkflows/local/peak_qc"
 include { SAMTOOLS_VIEW_SORT_STATS as FILTER_READS         } from "../subworkflows/local/samtools_view_sort_stats"
@@ -450,6 +454,9 @@ workflow CUTANDRUN {
 
     ch_bedgraph               = Channel.empty()
     ch_bigwig                 = Channel.empty()
+    ch_scale_factors          = Channel.empty()
+    ch_diff_summary_mqc       = Channel.empty()
+    ch_diff_design_mqc        = Channel.empty()
     ch_peaks_all              = Channel.empty()
     ch_peaks_primary          = Channel.empty()
     ch_peaks_secondary        = Channel.empty()
@@ -478,6 +485,7 @@ workflow CUTANDRUN {
         )
         ch_bedgraph          = PREPARE_PEAKCALLING.out.bedgraph
         ch_bigwig            = PREPARE_PEAKCALLING.out.bigwig
+        ch_scale_factors     = PREPARE_PEAKCALLING.out.scale_factors
         ch_software_versions = ch_software_versions.mix(PREPARE_PEAKCALLING.out.versions)
 
         /*
@@ -652,6 +660,27 @@ workflow CUTANDRUN {
             ch_control_fallbacks.toList().ifEmpty([])
         )
         ch_software_versions = ch_software_versions.mix(CONTROL_POOLING_FALLBACKS_REPORT.out.versions)
+    }
+
+    if (params.run_peak_calling && (params.run_diffbind || params.run_chipbinner || params.run_span_diff || params.differential_publish_manifest_only)) {
+        ch_gene_bed_annotation = params.gene_bed ? PREPARE_GENOME.out.bed : Channel.empty()
+        DIFFERENTIAL_PEAK_CALLING (
+            ch_samtools_bam,
+            ch_samtools_bai,
+            ch_bigwig,
+            ch_peaks_all,
+            ch_scale_factors,
+            PREPARE_GENOME.out.chrom_sizes,
+            ch_gene_bed_annotation,
+            PREPARE_GENOME.out.gtf,
+            ch_blacklist,
+            Channel.empty(),
+            Channel.empty(),
+            'integrated'
+        )
+        ch_software_versions = ch_software_versions.mix(DIFFERENTIAL_PEAK_CALLING.out.versions)
+        ch_diff_summary_mqc  = DIFFERENTIAL_PEAK_CALLING.out.summary_mqc
+        ch_diff_design_mqc   = DIFFERENTIAL_PEAK_CALLING.out.design_mqc
     }
 
     ch_dt_corrmatrix              = Channel.empty()
@@ -900,6 +929,7 @@ workflow CUTANDRUN {
     if (params.run_multiqc) {
         workflow_summary    = WorkflowCutandrun.paramsSummaryMultiqc(workflow, summary_params)
         ch_workflow_summary = Channel.value(workflow_summary)
+        ch_diff_mqc         = ch_diff_summary_mqc.mix(ch_diff_design_mqc)
 
         /*
         * MODULE: Collect software versions used in pipeline
@@ -936,6 +966,7 @@ workflow CUTANDRUN {
             ch_peakqc_count_consensus_mqc.collect{it[1]}.ifEmpty([]),
             ch_peakqc_reprod_perc_mqc.collect().ifEmpty([]),
             ch_frag_len_hist_mqc.collect().ifEmpty([]),
+            ch_diff_mqc.collect().ifEmpty([]),
             ch_linear_duplication_mqc.collect{it[1]}.ifEmpty([])
         )
         multiqc_report = MULTIQC.out.report.toList()

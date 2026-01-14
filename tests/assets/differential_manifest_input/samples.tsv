@@ -1,0 +1,4 @@
+sample_id	group	condition	replicate	final_bam	final_bai	spikein_scale_factor	bigwig_path
+s2	groupB	Control	2	bam2.bam	bam2.bai	NA	bw2.bw
+s1	groupA	Treatment	1	bam1.bam	bam1.bai	NA	bw1.bw
+s3	groupA	Control	1	bam3.bam	bam3.bai	NA	bw3.bw

@@ -1,0 +1,10 @@
+#id: 'differential_design'
+#parent_id: 'differential_analysis'
+#parent_name: 'Differential analysis'
+#parent_description: 'Differential peak calling outputs'
+#section_name: 'Differential analysis design'
+#description: 'Eligibility and design status for differential comparisons.'
+#plot_type: 'table'
+#pconfig:
+#    id: 'differential_design_table'
+#    title: 'Differential design'

@@ -543,6 +543,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
 
             ch_span_caps = SPAN_CAPABILITY_PROBE.out.capabilities
                 .map { file -> new groovy.json.JsonSlurper().parse(file) }
+                .first()
             ch_span_has_compare = ch_span_caps.map { it.has_compare ?: false }
             ch_span_multibam = ch_span_caps.map { it.compare_multi_bam ?: false }
             ch_span_multibam_mode = ch_span_caps.map { it.compare_multi_bam_mode ?: 'single' }

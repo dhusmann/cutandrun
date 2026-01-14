@@ -365,6 +365,7 @@ workflow DIFFERENTIAL_PEAK_CALLING {
                     }
                     map
                 }
+                .ifEmpty([:])
         }
 
         ch_chipbinner_samples = ch_valid_groups.combine(ch_control_map).map { rec, control_map ->

@@ -4,8 +4,8 @@ process SPAN_OMNIPEAKS_ANALYZE {
 
     conda "conda-forge::openjdk=21.0.2"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'docker://eclipse-temurin:21-jre' :
-        'eclipse-temurin:21-jre' }"
+        'docker://eclipse-temurin:21-jdk' :
+        'eclipse-temurin:21-jdk' }"
 
     input:
     tuple val(meta), path(treatment_bam), path(control_bam)
@@ -24,10 +24,11 @@ process SPAN_OMNIPEAKS_ANALYZE {
 
     script:
     def args = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}_${meta.caller}"
+    def raw_prefix = task.ext.prefix ?: "${meta.id}_${meta.caller}"
+    def prefix = raw_prefix.endsWith('.peak') ? raw_prefix : "${raw_prefix}.peak"
     def fdr_arg = fdr ? "--fdr ${fdr}" : ''
     """
-    java -Xmx${java_heap} -jar ${omnipeaks_jar} analyze \
+    java --add-modules jdk.incubator.vector -Xmx${java_heap} -jar ${omnipeaks_jar} analyze \
         -t ${treatment_bam} \
         -c ${control_bam} \
         --cs ${chrom_sizes} \

@@ -864,6 +864,7 @@ workflow CUTANDRUN {
                 ch_peaks_with_ids_all,
                 ch_consensus_peaks_all,
                 ch_consensus_peaks_unfilt_all,
+                PREPARE_GENOME.out.chrom_sizes,
                 EXTRACT_FRAGMENTS.out.bed,
                 ch_flagstat_target,
                 params.min_frip_overlap,

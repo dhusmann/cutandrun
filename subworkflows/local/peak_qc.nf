@@ -6,6 +6,7 @@ include { PEAK_FRIP                            } from "../../modules/local/peak_
 include { PEAK_COUNTS as PRIMARY_PEAK_COUNTS   } from "../../modules/local/peak_counts"
 include { PEAK_COUNTS as CONSENSUS_PEAK_COUNTS } from "../../modules/local/peak_counts"
 include { CUT as CUT_CALC_REPROD               } from "../../modules/local/linux/cut"
+include { BEDTOOLS_SORT as PEAKQC_BEDTOOLS_SORT } from "../../modules/local/for_patch/bedtools/sort/main"
 include { BEDTOOLS_INTERSECT                   } from "../../modules/nf-core/bedtools/intersect/main.nf"
 include { CALCULATE_PEAK_REPROD                } from "../../modules/local/python/peak_reprod"
 include { PLOT_CONSENSUS_PEAKS                 } from '../../modules/local/python/plot_consensus_peaks'
@@ -20,6 +21,7 @@ workflow PEAK_QC {
     peaks_with_ids                      // channel: [ val(meta), [ bed ] ]
     consensus_peaks                     // channel: [ val(meta), [ bed ] ]
     consensus_peaks_unfiltered          // channel: [ val(meta), [ bed ] ]
+    chrom_sizes                         // channel: [ path ]
     fragments_bed                       // channel: [ val(meta), [ bed ] ]
     flagstat                            // channel: [ val(meta), [ flagstat ] ]
     min_frip_overlap                    // val
@@ -87,9 +89,26 @@ workflow PEAK_QC {
     ch_versions = ch_versions.mix(CUT_CALC_REPROD.out.versions)
 
     /*
+    * CHANNEL: Normalize chrom_sizes to a single value for bedtools -g
+    */
+    ch_chrom_sizes_single = chrom_sizes
+        .collect()
+        .map { it instanceof List ? it[0] : it }
+
+    /*
+    * MODULE: Sort repro beds with genome order to satisfy -sorted intersect
+    */
+    PEAKQC_BEDTOOLS_SORT(
+        CUT_CALC_REPROD.out.file,
+        "bed",
+        ch_chrom_sizes_single
+    )
+    ch_versions = ch_versions.mix(PEAKQC_BEDTOOLS_SORT.out.versions)
+
+    /*
     * CHANNEL: Group samples based on group and filter for groups that have more than one file
     */
-    CUT_CALC_REPROD.out.file
+    PEAKQC_BEDTOOLS_SORT.out.sorted
     .map { row ->
         def group_key = consensus_grouping == 'group_condition' ? row[0].group_condition : row[0].group
         [ "${group_key}__${row[0].caller}", row[1], row[0] ]
@@ -131,7 +150,7 @@ workflow PEAK_QC {
     */
     BEDTOOLS_INTERSECT (
         ch_beds_intersect,
-        [[:],[]]
+        ch_chrom_sizes_single.map { [[:], it] }
     )
     ch_versions = ch_versions.mix(BEDTOOLS_INTERSECT.out.versions)
     //EXAMPLE CHANNEL STRUCT: [[META], BED]

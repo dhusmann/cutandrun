@@ -137,7 +137,9 @@ workflow PEAK_QC {
         row[1].each{ file ->
             def files_copy = row[1].collect()
             files_copy.remove(files_copy.indexOf(file))
-            new_output.add([[id: file.name.split("\\.")[0]], file, files_copy])
+            def file_id = file.name.split("\\.")[0]
+            def meta_out = row[0] + [id: file_id, sample_id: file_id]
+            new_output.add([meta_out, file, files_copy])
         }
         new_output
     }

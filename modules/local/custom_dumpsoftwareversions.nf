@@ -25,6 +25,7 @@ process CUSTOM_DUMPSOFTWAREVERSIONS {
 
     import yaml
     import platform
+    import json
     from textwrap import dedent
 
     def _make_versions_html(versions):
@@ -119,7 +120,33 @@ process CUSTOM_DUMPSOFTWAREVERSIONS {
     }
 
     with open("$versions") as f:
-        workflow_versions = yaml.load(f, Loader=yaml.BaseLoader) | module_versions
+        raw_lines = f.read().splitlines()
+
+    # Sanitize potentially noisy version strings (eg. warnings) into valid YAML
+    clean_lines = []
+    for line in raw_lines:
+        if not line.strip():
+            continue
+        if line.startswith('"'):
+            clean_lines.append(line)
+            continue
+        stripped = line.lstrip(' ')
+        indent = line[:len(line) - len(stripped)]
+        if ':' not in stripped:
+            # Drop stray lines (eg. warning continuations)
+            continue
+        key_part, value = stripped.split(':', 1)
+        key = f"{indent}{key_part}:"
+        value = value.strip()
+        if value == "":
+            clean_lines.append(line)
+            continue
+        if not (value.startswith('"') or value.startswith("'")):
+            clean_lines.append(f"{key} {json.dumps(value)}")
+        else:
+            clean_lines.append(line)
+
+    workflow_versions = yaml.load("\\n".join(clean_lines) + "\\n", Loader=yaml.BaseLoader) | module_versions
 
     workflow_versions["Workflow"] = {
         "Nextflow": "$workflow.nextflow.version",

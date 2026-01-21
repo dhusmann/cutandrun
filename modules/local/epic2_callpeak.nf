@@ -37,7 +37,7 @@ process EPIC2_CALLPEAK {
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        epic2: \$(epic2 --version 2>&1 | head -n 1 | sed -e 's/.*epic2 //g' || echo "unknown")
+        epic2: \$(epic2 --version 2>&1 | grep -Eo '[0-9]+(\\.[0-9]+)+' | head -n 1 || echo "unknown")
     END_VERSIONS
     """
 }

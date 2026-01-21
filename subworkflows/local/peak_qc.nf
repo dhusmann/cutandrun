@@ -6,9 +6,14 @@ include { PEAK_FRIP                            } from "../../modules/local/peak_
 include { PEAK_COUNTS as PRIMARY_PEAK_COUNTS   } from "../../modules/local/peak_counts"
 include { PEAK_COUNTS as CONSENSUS_PEAK_COUNTS } from "../../modules/local/peak_counts"
 include { CUT as CUT_CALC_REPROD               } from "../../modules/local/linux/cut"
+include { BEDTOOLS_SORT as PEAKQC_BEDTOOLS_SORT } from "../../modules/local/for_patch/bedtools/sort/main"
 include { BEDTOOLS_INTERSECT                   } from "../../modules/nf-core/bedtools/intersect/main.nf"
 include { CALCULATE_PEAK_REPROD                } from "../../modules/local/python/peak_reprod"
 include { PLOT_CONSENSUS_PEAKS                 } from '../../modules/local/python/plot_consensus_peaks'
+include { PEAK_QC_TABLE_REPORT as PEAK_QC_FRIP_REPORT      } from "../../modules/local/peak_qc_table_report"
+include { PEAK_QC_TABLE_REPORT as PEAK_QC_COUNTS_REPORT    } from "../../modules/local/peak_qc_table_report"
+include { PEAK_QC_TABLE_REPORT as PEAK_QC_CONSENSUS_REPORT } from "../../modules/local/peak_qc_table_report"
+include { PEAK_QC_TABLE_REPORT as PEAK_QC_REPROD_REPORT    } from "../../modules/local/peak_qc_table_report"
 
 workflow PEAK_QC {
     take:
@@ -16,6 +21,7 @@ workflow PEAK_QC {
     peaks_with_ids                      // channel: [ val(meta), [ bed ] ]
     consensus_peaks                     // channel: [ val(meta), [ bed ] ]
     consensus_peaks_unfiltered          // channel: [ val(meta), [ bed ] ]
+    chrom_sizes                         // channel: [ path ]
     fragments_bed                       // channel: [ val(meta), [ bed ] ]
     flagstat                            // channel: [ val(meta), [ flagstat ] ]
     min_frip_overlap                    // val
@@ -31,15 +37,20 @@ workflow PEAK_QC {
     /*
     * CHANNEL: Combine channel together for frip calculation
     */
-    peaks
-    .map { row -> [row[0].id, row ].flatten()}
-    .join ( fragments_bed.map { row -> [row[0].id, row ].flatten()} )
-    .join ( flagstat.map { row -> [row[0].id, row ].flatten()} )
-    .map { row -> [ row[1], row[2], row[4], row[6] ]}
-    .set { ch_frip }
+    def ch_peaks_by_id = peaks
+        .map { row -> [row[0].id, row] }
+        .groupTuple(by: [0])
+
+    ch_peaks_by_id
+        .join ( fragments_bed.map { row -> [row[0].id, row[1]] } )
+        .join ( flagstat.map { row -> [row[0].id, row[1]] } )
+        .flatMap { id, peak_rows, fragments, flagstat_file ->
+            peak_rows.collect { peak_row -> [ peak_row[0], peak_row[1], fragments, flagstat_file ] }
+        }
+        .set { ch_frip }
 
     /*
-    * MODULE: Calculate frip scores for primary peaks
+    * MODULE: Calculate frip scores for sample peaks
     */
     PEAK_FRIP(
         ch_frip,
@@ -50,7 +61,7 @@ workflow PEAK_QC {
     // PEAK_FRIP.out.frip_mqc | view
 
     /*
-    * MODULE: Calculate peak counts for primary peaks
+    * MODULE: Calculate peak counts for sample peaks
     */
     PRIMARY_PEAK_COUNTS(
         peaks,
@@ -78,9 +89,26 @@ workflow PEAK_QC {
     ch_versions = ch_versions.mix(CUT_CALC_REPROD.out.versions)
 
     /*
+    * CHANNEL: Normalize chrom_sizes to a single value for bedtools -g
+    */
+    ch_chrom_sizes_single = chrom_sizes
+        .collect()
+        .map { it instanceof List ? it[0] : it }
+
+    /*
+    * MODULE: Sort repro beds with genome order to satisfy -sorted intersect
+    */
+    PEAKQC_BEDTOOLS_SORT(
+        CUT_CALC_REPROD.out.file,
+        "bed",
+        ch_chrom_sizes_single
+    )
+    ch_versions = ch_versions.mix(PEAKQC_BEDTOOLS_SORT.out.versions)
+
+    /*
     * CHANNEL: Group samples based on group and filter for groups that have more than one file
     */
-    CUT_CALC_REPROD.out.file
+    PEAKQC_BEDTOOLS_SORT.out.sorted
     .map { row ->
         def group_key = consensus_grouping == 'group_condition' ? row[0].group_condition : row[0].group
         [ "${group_key}__${row[0].caller}", row[1], row[0] ]
@@ -109,7 +137,9 @@ workflow PEAK_QC {
         row[1].each{ file ->
             def files_copy = row[1].collect()
             files_copy.remove(files_copy.indexOf(file))
-            new_output.add([[id: file.name.split("\\.")[0]], file, files_copy])
+            def file_id = file.name.split("\\.")[0]
+            def meta_out = row[0] + [id: file_id, sample_id: file_id]
+            new_output.add([meta_out, file, files_copy])
         }
         new_output
     }
@@ -122,7 +152,7 @@ workflow PEAK_QC {
     */
     BEDTOOLS_INTERSECT (
         ch_beds_intersect,
-        [[:],[]]
+        ch_chrom_sizes_single.map { [[:], it] }
     )
     ch_versions = ch_versions.mix(BEDTOOLS_INTERSECT.out.versions)
     //EXAMPLE CHANNEL STRUCT: [[META], BED]
@@ -138,6 +168,82 @@ workflow PEAK_QC {
     ch_versions = ch_versions.mix(CALCULATE_PEAK_REPROD.out.versions)
     //EXAMPLE CHANNEL STRUCT: [[META], TSV]
     //CALCULATE_PEAK_REPROD.out.tsv
+
+    /*
+    * MODULE: Write caller-aware peak QC tables
+    */
+    def sample_header_prefix = "sample_id\tgroup\tcondition\treplicate\tcaller_id"
+
+    PEAK_FRIP.out.frip_score
+    .map { meta, score_file ->
+        def score = score_file.text.trim()
+        def replicate = meta.replicate ?: 'NA'
+        def group = meta.group ?: 'NA'
+        def condition = meta.condition ?: 'NA'
+        def caller = meta.caller ?: 'NA'
+        def sample_id = meta.sample_id ?: meta.id
+        [sample_id, group, condition, replicate, caller, score].join('\t')
+    }
+    .toList()
+    .ifEmpty([])
+    .map { rows -> ['peak_frip_scores', "${sample_header_prefix}\tfrip_score", rows] }
+    .set { ch_frip_table }
+
+    PEAK_QC_FRIP_REPORT(ch_frip_table)
+    ch_versions = ch_versions.mix(PEAK_QC_FRIP_REPORT.out.versions)
+
+    PRIMARY_PEAK_COUNTS.out.count_value
+    .map { meta, count_file ->
+        def count = count_file.text.trim()
+        def replicate = meta.replicate ?: 'NA'
+        def group = meta.group ?: 'NA'
+        def condition = meta.condition ?: 'NA'
+        def caller = meta.caller ?: 'NA'
+        def sample_id = meta.sample_id ?: meta.id
+        [sample_id, group, condition, replicate, caller, count].join('\t')
+    }
+    .toList()
+    .ifEmpty([])
+    .map { rows -> ['peak_counts', "${sample_header_prefix}\tpeak_count", rows] }
+    .set { ch_peak_count_table }
+
+    PEAK_QC_COUNTS_REPORT(ch_peak_count_table)
+    ch_versions = ch_versions.mix(PEAK_QC_COUNTS_REPORT.out.versions)
+
+    CONSENSUS_PEAK_COUNTS.out.count_value
+    .map { meta, count_file ->
+        def count = count_file.text.trim()
+        def group = meta.group ?: 'NA'
+        def condition = meta.condition ?: 'NA'
+        def caller = meta.caller ?: 'NA'
+        def sample_id = meta.sample_id ?: meta.id
+        [sample_id, group, condition, 'NA', caller, count].join('\t')
+    }
+    .toList()
+    .ifEmpty([])
+    .map { rows -> ['consensus_peak_counts', "${sample_header_prefix}\tconsensus_peak_count", rows] }
+    .set { ch_consensus_count_table }
+
+    PEAK_QC_CONSENSUS_REPORT(ch_consensus_count_table)
+    ch_versions = ch_versions.mix(PEAK_QC_CONSENSUS_REPORT.out.versions)
+
+    CALCULATE_PEAK_REPROD.out.tsv
+    .map { meta, repro_file ->
+        def parts = repro_file.text.trim().split('\t')
+        def value = parts.size() > 1 ? parts[1] : ''
+        def group = meta.group ?: 'NA'
+        def condition = meta.condition ?: 'NA'
+        def caller = meta.caller ?: 'NA'
+        def sample_id = meta.sample_id ?: meta.id
+        [sample_id, group, condition, 'NA', caller, value].join('\t')
+    }
+    .toList()
+    .ifEmpty([])
+    .map { rows -> ['peak_reproducibility', "${sample_header_prefix}\tpeak_reproducibility_percent", rows] }
+    .set { ch_reprod_table }
+
+    PEAK_QC_REPROD_REPORT(ch_reprod_table)
+    ch_versions = ch_versions.mix(PEAK_QC_REPROD_REPORT.out.versions)
 
     /*
     * CHANNEL: Prep for upset input

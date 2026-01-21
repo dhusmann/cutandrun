@@ -41,6 +41,11 @@ def parse_args(args=None):
         "USE_CONTROL",
         help="Boolean for whether or not the user has specified the pipeline must normalise against a control",
     )
+    parser.add_argument(
+        "--allow-cross-condition-controls",
+        action="store_true",
+        help="Allow targets to use controls from other conditions when no exact condition match exists",
+    )
     return parser.parse_args(args)
 
 
@@ -63,7 +68,7 @@ def print_error(error, context="Line", context_str=""):
     sys.exit(1)
 
 
-def check_samplesheet(file_in, file_out, use_control):
+def check_samplesheet(file_in, file_out, use_control, allow_cross_condition_controls=False):
     """
     This function checks that the samplesheet follows the following structure:
 
@@ -83,6 +88,15 @@ def check_samplesheet(file_in, file_out, use_control):
     control_names_list = []
     sample_run_dict = {}
     control_condition_map = {}
+    missing_control_errors = []
+    missing_control_warnings = []
+    cross_condition_warnings = []
+    legacy_na_warnings = []
+    warning_lines = []
+
+    def record_warning(message):
+        print(message)
+        warning_lines.append(message)
 
     with open(file_in, "r") as fin:
         ## Check header
@@ -239,6 +253,13 @@ def check_samplesheet(file_in, file_out, use_control):
     ## Check control group exists
     for ctrl in control_names_list:
         if ctrl != "" and ctrl not in sample_names_list:
+            if allow_cross_condition_controls:
+                record_warning(
+                    "WARNING: Control entry '{}' does not match any group entry; proceeding because "
+                    "--allow_cross_condition_controls was set. This may indicate a typo. "
+                    "Control-required callers (epic2/span) will be skipped; SEACR/MACS2 will run without control.".format(ctrl)
+                )
+                continue
             print_error(
                 "Each control entry must match at least one group entry! Unmatched control entry: {}.".format(ctrl)
             )
@@ -269,7 +290,7 @@ def check_samplesheet(file_in, file_out, use_control):
         )
 
     if use_control == "false" and control_present:
-        print(
+        record_warning(
             "WARNING: Parameter --use_control was set to false, but an control group was found in " + str(file_in) + "."
         )
 
@@ -281,20 +302,113 @@ def check_samplesheet(file_in, file_out, use_control):
                     if info[-1] == "1":
                         control_condition_map.setdefault(info[0], set()).add(info[1])
 
-        # Warn on condition mismatch between targets and controls
-        for sample_key, reps in sample_run_dict.items():
-            for replicate, infos in reps.items():
-                for info in infos:
-                    if info[-1] == "0" and info[3] != "":
-                        ctrl_conditions = control_condition_map.get(info[3], set())
-                        if ctrl_conditions and info[1] not in ctrl_conditions and "NA" not in ctrl_conditions:
+        # Validate condition-specific controls for targets
+        if has_condition:
+            for sample_key, reps in sample_run_dict.items():
+                for replicate, infos in reps.items():
+                    for info in infos:
+                        if info[-1] == "0" and info[3] != "":
+                            ctrl_conditions = control_condition_map.get(info[3], set())
                             sample_id = "{}_{}_rep{}".format(info[0], info[1], info[2])
-                            print(
-                                "WARNING: No control found for target condition; will fall back to other conditions if available.\n"
-                                "Target sample_id: {} | control_group: {} | expected condition: {}".format(
-                                    sample_id, info[3], info[1]
+                            if not ctrl_conditions:
+                                entry = {
+                                    "sample_id": sample_id,
+                                    "group": info[0],
+                                    "condition": info[1],
+                                    "replicate": info[2],
+                                    "control_group": info[3],
+                                    "control_conditions": "NONE",
+                                }
+                                if allow_cross_condition_controls:
+                                    missing_control_warnings.append(entry)
+                                    continue
+                                missing_control_errors.append(entry)
+                                continue
+                            if info[1] in ctrl_conditions:
+                                continue
+                            if "NA" in ctrl_conditions:
+                                legacy_na_warnings.append(
+                                    {
+                                        "sample_id": sample_id,
+                                        "group": info[0],
+                                        "condition": info[1],
+                                        "replicate": info[2],
+                                        "control_group": info[3],
+                                        "control_conditions": ",".join(sorted(ctrl_conditions)),
+                                    }
                                 )
+                                continue
+                            if allow_cross_condition_controls:
+                                cross_condition_warnings.append(
+                                    {
+                                        "sample_id": sample_id,
+                                        "group": info[0],
+                                        "condition": info[1],
+                                        "replicate": info[2],
+                                        "control_group": info[3],
+                                        "control_conditions": ",".join(sorted(ctrl_conditions)),
+                                    }
+                                )
+                                continue
+                            missing_control_errors.append(
+                                {
+                                    "sample_id": sample_id,
+                                    "group": info[0],
+                                    "condition": info[1],
+                                    "replicate": info[2],
+                                    "control_group": info[3],
+                                    "control_conditions": ",".join(sorted(ctrl_conditions)),
+                                }
                             )
+
+        if missing_control_errors:
+            print("ERROR: Missing condition-matched controls for target samples (fail-fast).")
+            for entry in missing_control_errors:
+                print(
+                    " - sample_id: {sample_id} | group: {group} | condition: {condition} | replicate: {replicate} | "
+                    "control_group: {control_group} | control_conditions_found: {control_conditions}".format(**entry)
+                )
+            print(
+                "Remediation: add control rows for the missing condition(s), or set controls to legacy NA "
+                "consistently. If you intentionally want cross-condition controls, rerun with "
+                "--allow_cross_condition_controls."
+            )
+            sys.exit(1)
+
+        if missing_control_warnings:
+            record_warning(
+                "WARNING: No control rows exist for one or more control groups; proceeding because "
+                "--allow_cross_condition_controls was set. Control-required callers (epic2/span) will be skipped "
+                "for these samples; SEACR/MACS2 will run without control."
+            )
+            for entry in missing_control_warnings:
+                record_warning(
+                    " - sample_id: {sample_id} | group: {group} | condition: {condition} | replicate: {replicate} | "
+                    "control_group: {control_group} | control_conditions_found: {control_conditions}".format(**entry)
+                )
+
+        if legacy_na_warnings:
+            record_warning("WARNING: Control rows with condition=NA used for targets with explicit conditions (legacy mode).")
+            for entry in legacy_na_warnings:
+                record_warning(
+                    " - sample_id: {sample_id} | group: {group} | condition: {condition} | replicate: {replicate} | "
+                    "control_group: {control_group} | control_conditions_found: {control_conditions}".format(**entry)
+                )
+
+        if cross_condition_warnings:
+            record_warning(
+                "WARNING: No exact condition-matched controls found; proceeding with cross-condition controls "
+                "because --allow_cross_condition_controls was set."
+            )
+            for entry in cross_condition_warnings:
+                record_warning(
+                    " - sample_id: {sample_id} | group: {group} | condition: {condition} | replicate: {replicate} | "
+                    "control_group: {control_group} | control_conditions_found: {control_conditions}".format(**entry)
+                )
+
+    with open("samplesheet.warnings.txt", "w") as warn:
+        if warning_lines:
+            warn.write("\n".join(warning_lines) + "\n")
 
     ## Write validated samplesheet with appropriate columns
     if len(sample_run_dict) > 0:
@@ -326,14 +440,19 @@ def check_samplesheet(file_in, file_out, use_control):
                             # print_error("Control group must match within technical replicates", tech_rep[2])
 
                     ## Write to file
-                    for idx, sample_info in enumerate(sample_run_dict[sample_key][replicate]):
-                        sample_id = "{}_{}_rep{}_T{}".format(sample_info[0], sample_info[1], replicate, idx + 1)
+                    for sample_info in sample_run_dict[sample_key][replicate]:
+                        sample_id = "{}_{}_rep{}".format(sample_info[0], sample_info[1], replicate)
                         fout.write(",".join([sample_id] + sample_info[:7] + [sample_info[-1]]) + "\n")
 
 
 def main(args=None):
     args = parse_args(args)
-    check_samplesheet(args.FILE_IN, args.FILE_OUT, args.USE_CONTROL)
+    check_samplesheet(
+        args.FILE_IN,
+        args.FILE_OUT,
+        args.USE_CONTROL,
+        allow_cross_condition_controls=args.allow_cross_condition_controls,
+    )
 
 
 if __name__ == "__main__":

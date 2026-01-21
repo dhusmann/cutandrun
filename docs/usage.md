@@ -14,7 +14,7 @@ You will need to create a samplesheet file with information about the samples in
 --input <path to samplesheet file>
 ```
 
-An example sample sheet structure is shown below. This defines two target experimental groups for the histone marks h3k27me3 and h3k4me3 across two conditions (Control/Treatment) with two biological replicates per condition. Each antibody target also has an IgG control per condition. The IgG controls are assigned to the target samples using the `control` column. If there are an equal number of replicates assigned to the samples from the control group as is the case below, the IgG controls will automatically be assigned to the same replicate number. If there is a mismatch then the first replicate of the control group will be assigned to all.
+An example sample sheet structure is shown below. This defines two target experimental groups for the histone marks h3k27me3 and h3k4me3 across two conditions (Control/Treatment) with two biological replicates per condition. Each antibody target also has an IgG control per condition. The IgG controls are assigned to the target samples using the `control` column. If there are an equal number of replicates assigned to the samples from the control group as is the case below, the IgG controls will automatically be assigned to the same replicate number. If there is a mismatch then the first replicate of the control group will be assigned to all. When a `condition` column is present, each target row that declares a control must have a matching control row for the same condition (fail-fast by default). Use `--allow_cross_condition_controls` only if you explicitly want cross-condition controls.
 
 ```bash
 group,condition,replicate,fastq_1,fastq_2,control
@@ -165,7 +165,7 @@ If control samples are provided in the sample sheet, they will be used to normal
 
 ### Consensus Peaks
 
-After peak calling, consensus peaks are calculated by merging peaks within the same grouping key. Use `--consensus_grouping` to choose `group` or `group_condition`. By default, if the samplesheet includes a `condition` column, grouping uses `group_condition`; otherwise it falls back to `group`. The number of replicates required for a valid peak can be changed using `replicate_threshold`. To call consensus peaks across all samples, set `--consensus_peak_mode all`.
+After peak calling, consensus peaks are calculated by merging peaks within the same grouping key. Use `--consensus_grouping` to choose `group`, `group_condition`, or `all`. By default, if the samplesheet includes a `condition` column, grouping uses `group_condition`; otherwise it falls back to `group`. Set `--consensus_grouping all` to call consensus peaks across all samples. The number of replicates required for a valid peak can be changed using `replicate_threshold`. The legacy `--consensus_peak_mode all` still maps to the same all-samples behavior.
 
 ### Reproducibility
 

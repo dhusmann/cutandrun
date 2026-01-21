@@ -73,7 +73,7 @@
                 },
                 "dump_scale_factors": {
                     "type": "boolean",
-                    "description": "Output calculated scale factors from pipeline"
+                    "description": "Emit additional debug outputs for spike-in normalisation (standard scale-factor TSVs are always written when normalisation_mode is Spikein)."
                 }
             }
         },
@@ -362,6 +362,12 @@
                     "fa_icon": "fas fa-align-justify",
                     "description": "Specifies whether to use a control to normalise peak calls against (e.g. IgG)"
                 },
+                "allow_cross_condition_controls": {
+                    "type": "boolean",
+                    "default": false,
+                    "fa_icon": "fas fa-align-justify",
+                    "description": "Allow targets to use controls from other conditions when no exact condition match exists (default: false, fail-fast)."
+                },
                 "extend_fragments": {
                     "type": "boolean",
                     "default": true,
@@ -468,8 +474,8 @@
                 "consensus_grouping": {
                     "type": "string",
                     "fa_icon": "fas fa-align-justify",
-                    "description": "Grouping key for consensus peaks when consensus_peak_mode is group. Options are [group, group_condition]. Defaults to group_condition when the samplesheet has a condition column, otherwise group.",
-                    "enum": ["group", "group_condition"]
+                    "description": "Grouping key for consensus peaks when consensus_peak_mode is group. Options are [group, group_condition, all]. Defaults to group_condition when the samplesheet has a condition column, otherwise group. Set to all to compute consensus across all samples.",
+                    "enum": ["group", "group_condition", "all"]
                 },
                 "replicate_threshold": {
                     "type": "number",

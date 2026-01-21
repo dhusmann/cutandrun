@@ -1,4 +1,4 @@
-process CONTROL_POOLING_FALLBACKS_REPORT {
+process NORMALISATION_SCOPE_REFERENCE_REPORT {
     label 'process_single'
 
     conda "conda-forge::coreutils=9.5"
@@ -10,32 +10,24 @@ process CONTROL_POOLING_FALLBACKS_REPORT {
     val records
 
     output:
-    path "control_pooling_fallbacks.tsv", emit: tsv
+    path "normalisation_scope_reference.tsv", emit: tsv
     path "versions.yml", emit: versions
 
     when:
     task.ext.when == null || task.ext.when
 
     script:
-    def header = "sample_id\tgroup\tcondition\tcaller_id\tcontrol_group\tselected_control_condition\tstatus\taction\treason\tpooled_control_path"
+    def header = "scope_id\treference_reads"
     def lines = records ? records.collect { record ->
         [
-            record.sample_id ?: '',
-            record.group ?: '',
-            record.condition ?: '',
-            record.caller_id ?: '',
-            record.control_group ?: '',
-            record.selected_control_condition ?: '',
-            record.status ?: '',
-            record.action ?: '',
-            record.reason ?: '',
-            record.pooled_control_path ?: ''
+            record.scope_id,
+            record.reference_reads
         ].join('\t')
     }.join('\n') : ''
     """
-    printf "%s\\n" "${header}" > control_pooling_fallbacks.tsv
+    printf "%s\\n" "${header}" > normalisation_scope_reference.tsv
     if [ -n "${lines}" ]; then
-        printf "%s\\n" "${lines}" >> control_pooling_fallbacks.tsv
+        printf "%s\\n" "${lines}" >> normalisation_scope_reference.tsv
     fi
 
     coreutils_version=\$(cat --version | head -n 1 | awk '{print \$NF}')

@@ -2,8 +2,8 @@
 #parent_id: 'peak_qc'
 #parent_name: 'Peak QC'
 #parent_description: 'This section contains peak-based QC reports'
-#section_name: 'Sample Peak reproducibility %'
-#description: 'Calculated from the total number of overlapping peaks within group replicate sets'
+#section_name: 'Sample Peak reproducibility % (per caller)'
+#description: 'Calculated from the total number of overlapping peaks within group replicate sets for each caller'
 #plot_type: 'bargraph'
 #anchor: 'primary_peakrepro'
 #pconfig:

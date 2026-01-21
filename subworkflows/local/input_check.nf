@@ -11,6 +11,11 @@ workflow INPUT_CHECK {
     main:
     SAMPLESHEET_CHECK ( samplesheet )
 
+    SAMPLESHEET_CHECK.out.warnings
+        .map { it.text?.trim() }
+        .filter { it }
+        .view { it }
+
     SAMPLESHEET_CHECK.out.csv
         .splitCsv ( header:true, sep:"," )
         .map { get_samplesheet_paths(it) }

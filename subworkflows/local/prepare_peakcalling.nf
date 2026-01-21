@@ -8,6 +8,7 @@ include { BEDTOOLS_SORT         } from "../../modules/local/for_patch/bedtools/s
 include { UCSC_BEDCLIP          } from "../../modules/nf-core/ucsc/bedclip/main"
 include { UCSC_BEDGRAPHTOBIGWIG } from "../../modules/nf-core/ucsc/bedgraphtobigwig/main"
 include { NORMALISATION_FACTORS_REPORT } from "../../modules/local/normalisation_factors_report"
+include { NORMALISATION_SCOPE_REFERENCE_REPORT } from "../../modules/local/normalisation_scope_reference_report"
 
 workflow PREPARE_PEAKCALLING {
     take:
@@ -24,6 +25,7 @@ workflow PREPARE_PEAKCALLING {
     main:
     ch_versions = Channel.empty()
     ch_bedgraph = Channel.empty()
+    ch_scope_reference = Channel.empty()
     def norm_scope = normalisation_scope ?: 'all'
     def igg_scope  = igg_scale_scope ?: 'legacy'
     def median = { List values ->
@@ -92,26 +94,41 @@ workflow PREPARE_PEAKCALLING {
         // EXAMPLE CHANNEL STRUCT: [id, scale_factor]
         //ch_bam_scale_factor | view
 
-        if (params.dump_scale_factors) {
-            ch_bam_scale_factor_report
-                .map { meta, bam, scale, reads, scope_id ->
-                    [
-                        sample_id: meta.id,
-                        group: meta.group,
-                        condition: meta.condition,
-                        replicate: meta.replicate,
-                        spikein_reads: reads,
-                        scale_factor: scale,
-                        scope_id: scope_id
-                    ]
-                }
-                .map { record -> [ record.scope_id, record ] }
-                .groupTuple(by: [0])
-                .map { scope_id, records -> [ scope_id, records ] }
-                .set { ch_norm_factors }
+        ch_bam_scale_factor_report
+            .map { meta, bam, scale, reads, scope_id ->
+                [
+                    sample_id: meta.sample_id ?: meta.id,
+                    group: meta.group,
+                    condition: meta.condition,
+                    replicate: meta.replicate,
+                    spikein_reads: reads,
+                    scale_factor: scale,
+                    scope_id: scope_id
+                ]
+            }
+            .map { record -> [ record.scope_id, record ] }
+            .groupTuple(by: [0])
+            .map { scope_id, records -> [ scope_id, records ] }
+            .set { ch_norm_factors }
 
-            NORMALISATION_FACTORS_REPORT ( ch_norm_factors )
-            ch_versions = ch_versions.mix(NORMALISATION_FACTORS_REPORT.out.versions)
+        NORMALISATION_FACTORS_REPORT ( ch_norm_factors )
+        ch_versions = ch_versions.mix(NORMALISATION_FACTORS_REPORT.out.versions)
+
+        if (params.dump_scale_factors) {
+            if (norm_scope == 'all') {
+                ch_scope_reference = Channel.of([scope_id: 'all', reference_reads: params.normalisation_c])
+            } else {
+                ch_scope_reference = ch_scope_ref
+                    .map { scope_id, ref -> [scope_id: scope_id, reference_reads: ref] }
+            }
+
+            ch_scope_reference
+                .toList()
+                .map { records -> records ?: [] }
+                .set { ch_scope_reference_records }
+
+            NORMALISATION_SCOPE_REFERENCE_REPORT ( ch_scope_reference_records )
+            ch_versions = ch_versions.mix(NORMALISATION_SCOPE_REFERENCE_REPORT.out.versions)
         }
     }
     else if (norm_mode == "None") {

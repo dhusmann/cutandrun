@@ -13,6 +13,7 @@ process PEAK_FRIP {
     val   min_frip_overlap
 
     output:
+    tuple val(meta), path("*_frip_score.txt"), emit: frip_score
     tuple val(meta), path("*mqc.tsv"), emit: frip_mqc
     path  "versions.yml"             , emit: versions
 
@@ -23,7 +24,10 @@ process PEAK_FRIP {
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
     READS_IN_PEAKS=\$(bedtools intersect -a ${fragments_bed} -b ${peaks_bed} -bed -c -f $min_frip_overlap |  awk -F '\t' '{sum += \$NF} END {print sum * 2}')
-    grep -m 1 'mapped (' ${flagstat} | awk -v a="\$READS_IN_PEAKS" -v OFS='\t' '{print "Peak FRiP Score", a/\$1}' | cat $frip_score_header - > ${prefix}_mqc.tsv
+    MAPPED_READS=\$(grep -m 1 'mapped (' ${flagstat} | awk '{print \$1}')
+    FRIP_SCORE=\$(awk -v a="\$READS_IN_PEAKS" -v b="\$MAPPED_READS" 'BEGIN {OFS="\\t"; if (b > 0) {print a / b} else {print 0}}')
+    printf "%s\\n" "\$FRIP_SCORE" > ${prefix}_frip_score.txt
+    printf "Peak FRiP Score\\t%s\\n" "\$FRIP_SCORE" | cat $frip_score_header - > ${prefix}_mqc.tsv
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

@@ -18,6 +18,9 @@ class WorkflowCutandrun {
             params.consensus_grouping = has_condition == false ? 'group' : 'group_condition'
         }
 
+        // Resolve peak callers after params are fully loaded (e.g. from -params-file)
+        resolveCallers(params)
+
         genomeExistsError(params, log)
         validatePeakCallerParams(params, log)
 
@@ -93,6 +96,47 @@ class WorkflowCutandrun {
         if (params.peakcaller_preset && !['standard','extended'].contains(params.peakcaller_preset.toLowerCase())) {
             Nextflow.error "Invalid --peakcaller_preset value '${params.peakcaller_preset}'. Valid options: standard, extended."
         }
+    }
+
+    //
+    // Resolve caller list with correct precedence
+    //
+    private static void resolveCallers(params) {
+        def caller_preset_map = [
+            standard: ['seacr'],
+            extended: [
+                'macs2_narrow',
+                'macs2_broad',
+                'gopeaks_narrow',
+                'gopeaks_broad',
+                'epic2_200bp',
+                'epic2_150bp',
+                'epic2_25bp',
+                'span_default',
+                'span_stringent'
+            ]
+        ]
+
+        def callers = []
+        if (params.callers) {
+            if (params.callers instanceof String) {
+                callers = params.callers.split(',').collect { it.trim().toLowerCase() }.findAll { it }
+            } else if (params.callers instanceof List) {
+                callers = params.callers.collect { it.toString().trim().toLowerCase() }.findAll { it }
+            }
+        }
+
+        if (params.peakcaller) {
+            callers = params.peakcaller.split(',').collect { it.trim().toLowerCase() }.findAll { it }
+        } else if (!callers) {
+            if (params.peakcaller_preset && params.peakcaller_preset.toLowerCase() == 'extended') {
+                callers = caller_preset_map.extended
+            } else {
+                callers = caller_preset_map.standard
+            }
+        }
+
+        params.callers = callers
     }
 
     //

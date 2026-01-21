@@ -390,6 +390,11 @@ workflow CUTANDRUN {
      * SUBWORKFLOW: Remove duplicates - default is on IgG controls only
      */
     if (params.run_remove_dups) {
+        // Preserve pre-dedup stats for targets when only controls are deduplicated
+        ch_stats_pre = ch_samtools_stats
+        ch_flagstat_pre = ch_samtools_flagstat
+        ch_idxstats_pre = ch_samtools_idxstats
+
         DEDUPLICATE_PICARD (
             ch_samtools_bam,
             ch_samtools_bai,
@@ -399,9 +404,15 @@ workflow CUTANDRUN {
         )
         ch_samtools_bam      = DEDUPLICATE_PICARD.out.bam
         ch_samtools_bai      = DEDUPLICATE_PICARD.out.bai
-        ch_samtools_stats    = DEDUPLICATE_PICARD.out.stats
-        ch_samtools_flagstat = DEDUPLICATE_PICARD.out.flagstat
-        ch_samtools_idxstats = DEDUPLICATE_PICARD.out.idxstats
+        if (params.dedup_target_reads) {
+            ch_samtools_stats    = DEDUPLICATE_PICARD.out.stats
+            ch_samtools_flagstat = DEDUPLICATE_PICARD.out.flagstat
+            ch_samtools_idxstats = DEDUPLICATE_PICARD.out.idxstats
+        } else {
+            ch_samtools_stats    = DEDUPLICATE_PICARD.out.stats.mix(ch_stats_pre.filter { it[0].is_control == false })
+            ch_samtools_flagstat = DEDUPLICATE_PICARD.out.flagstat.mix(ch_flagstat_pre.filter { it[0].is_control == false })
+            ch_samtools_idxstats = DEDUPLICATE_PICARD.out.idxstats.mix(ch_idxstats_pre.filter { it[0].is_control == false })
+        }
         ch_software_versions = ch_software_versions.mix(DEDUPLICATE_PICARD.out.versions)
     }
     //EXAMPLE CHANNEL STRUCT: [[id:h3k27me3_R1, group:h3k27me3, replicate:1, single_end:false, is_control:false], [BAM]]
